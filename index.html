@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wanderlust - Travel Map</title>
+
+    <!-- Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div id="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fa-solid fa-earth-americas"></i>
+                    <h1>Wanderlust</h1>
+                </div>
+                <p class="subtitle">Plan your journey</p>
+            </div>
+
+            <div class="journey-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Total Stops</span>
+                    <span class="stat-value" id="total-stops">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Total Distance</span>
+                    <span class="stat-value" id="total-distance">0 km</span>
+                </div>
+            </div>
+
+            <div class="controls-bar">
+                <button id="reorder-btn" class="btn btn-sm btn-secondary" title="Reorder Stops">
+                    <i class="fa-solid fa-sort"></i> Reorder
+                </button>
+            </div>
+
+            <div class="stops-container">
+                <ul id="stops-list" class="stops-list">
+                    <!-- Stops will be injected here -->
+                    <li class="empty-state">
+                        <i class="fa-regular fa-map"></i>
+                        <p>Click on the map to add your start point</p>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="sidebar-footer">
+                <button id="reset-btn" class="btn btn-secondary">
+                    <i class="fa-solid fa-rotate-right"></i> Reset Map
+                </button>
+            </div>
+        </aside>
+
+        <!-- Map Container -->
+        <div id="map"></div>
+
+        <!-- Mobile Toggle -->
+        <button id="sidebar-toggle" class="sidebar-toggle">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- SortableJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
