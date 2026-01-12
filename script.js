@@ -120,10 +120,20 @@ const updateUI = () => {
             `;
         }
 
+        // Handle name input
+        // If the stop, for some reason, has no user-defined name but we haven't set a default yet (unlikely now), fallback
+        const displayName = stop.name || `Stop #${index + 1}`;
+
         li.innerHTML = `
             <div class="stop-header">
                 <i class="fa-solid fa-grip-lines drag-handle"></i>
-                <span class="stop-name">Stop #${index + 1}</span>
+                <input type="text" 
+                       class="stop-name-input" 
+                       value="${displayName}" 
+                       onchange="updateStopName(${stop.id}, this.value)" 
+                       onclick="this.select()"
+                       aria-label="Stop Name"
+                />
                 <div class="stop-controls">
                     ${typeControl}
                     <button class="delete-btn" onclick="removeStop(${stop.id})" title="Remove Stop">
@@ -154,6 +164,9 @@ const addStop = (latlng) => {
     let type = 'transit'; // default
     if (stops.length === 0) type = 'start'; // first is always start
 
+    // Initial Default Name
+    const name = `Stop #${stops.length + 1}`;
+
     // Enable dragging
     const marker = L.marker(latlng, { draggable: true }).addTo(map);
 
@@ -162,37 +175,35 @@ const addStop = (latlng) => {
         direction: 'top',
         offset: [0, -10],
         opacity: 0.95,
-        className: 'custom-tooltip' // We can add styles for this if needed
+        className: 'custom-tooltip'
     });
 
-    const newStop = { id, latlng, marker, type };
+    const newStop = { id, latlng, marker, type, name };
     stops.push(newStop);
 
     // Drag Event
     marker.on('dragend', (e) => {
         const newPos = e.target.getLatLng();
         newStop.latlng = newPos;
-        updateUI(); // Recalculate distances and lines
+        updateUI();
         updateMarkerInfo(newStop, stops.indexOf(newStop));
     });
 
     // Initial info update
     updateMarkerInfo(newStop, stops.length - 1);
 
-    // marker.openPopup(); // Removed popup open on create, tooltip handles info now? 
-    // User asked for hover info. Let's keep popup on click if they want persistent info?
-    // Actually, let's keep the popup logic but maybe update it too.
-    // The previous code had `marker.openPopup()` which was nice for feedback.
-    // Let's stick to tooltip for hover as requested.
-
     updateUI();
 };
 
 // Helper: Update Marker Tooltip
 const updateMarkerInfo = (s, idx) => {
+    // If name is standard 'Stop #X' use that, else use custom name.
+    // Actually, UI state always has a name now.
+    const displayName = s.name || `Stop #${idx + 1}`;
+
     const content = `
         <div style="text-align: center; font-family: 'Outfit', sans-serif;">
-            <b>Stop #${idx + 1}</b>
+            <b>${displayName}</b>
             <div style="font-size: 0.85em; opacity: 0.8; margin-top: 2px;">${s.type.toUpperCase()}</div>
         </div>
     `;
@@ -208,6 +219,7 @@ window.removeStop = (id) => {
         // If we removed the start (index 0), make the new index 0 the start
         if (index === 0 && stops.length > 0) {
             stops[0].type = 'start';
+            // Optional: Rename it 'Start'? No, user might have custom name.
         }
 
         // Refresh all markers info
@@ -224,6 +236,18 @@ window.changeStopType = (id, newType) => {
         const idx = stops.indexOf(stop);
         updateMarkerInfo(stop, idx);
         updateUI();
+    }
+};
+
+window.updateStopName = (id, newName) => {
+    const stop = stops.find(s => s.id === id);
+    if (stop) {
+        stop.name = newName;
+        // Don't necessarily need to redraw entire UI, but do need to update Tooltip
+        const idx = stops.indexOf(stop);
+        updateMarkerInfo(stop, idx);
+        // We do NOT call updateUI() here because the input field that triggered this would lose focus/caret position if we did.
+        // The value is already in the input.
     }
 };
 

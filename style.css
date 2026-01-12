@@ -271,10 +271,31 @@ body {
     gap: 8px;
 }
 
-.stop-name {
+/* Updated: Replaced .stop-name span with .stop-name-input */
+.stop-name-input {
+    font-family: var(--font-family);
     font-weight: 600;
     font-size: 14px;
     flex: 1;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-color);
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    width: 100%;
+    min-width: 0;
+    /* Prevent overflow */
+}
+
+.stop-name-input:focus {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    outline: none;
+}
+
+.stop-name-input:hover {
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .stop-type-badge {
@@ -362,6 +383,7 @@ body {
     color: var(--text-muted);
     font-family: monospace;
     margin-bottom: 6px;
+    padding-left: 6px;
 }
 
 .leg-info {
@@ -465,4 +487,19 @@ body {
 .leaflet-popup-content {
     margin: 12px;
     font-family: var(--font-family);
+}
+
+.custom-tooltip {
+    background: var(--bg-glass) !important;
+    border: 1px solid var(--border-glass) !important;
+    color: var(--text-color) !important;
+    backdrop-filter: blur(8px);
+    font-family: var(--font-family);
+    padding: 6px 10px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.custom-tooltip::before {
+    border-top-color: var(--border-glass) !important;
 }
