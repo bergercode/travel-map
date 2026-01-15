@@ -10,7 +10,9 @@ const totalStopsEl = document.getElementById('total-stops');
 const totalDistanceEl = document.getElementById('total-distance');
 const totalDaysEl = document.getElementById('total-days'); // New
 const resetBtn = document.getElementById('reset-btn');
-const reorderBtn = document.getElementById('reorder-btn');
+const reorderBtn = document.getElementById('reorder-btn'); // Floating (Desktop)
+const reorderBtnMobile = document.getElementById('reorder-btn-mobile'); // Sidebar (Mobile)
+const undoBtn = document.getElementById('undo-btn'); // Mobile
 const playBtn = document.getElementById('play-btn'); // New
 const sidebarToggle = document.getElementById('sidebar-toggle');
 
@@ -133,8 +135,21 @@ const getRoute = async (start, end, method, options = {}) => {
             return latlngs;
         };
 
-        if (options.flightStopLatLng) {
-            // Two arcs: Start -> Stopover -> End
+        if (options.flightStopovers && options.flightStopovers.length > 0) {
+            // Multi-segment arc: Start -> Stopover1 -> Stopover2 ... -> End
+            const points = [start, ...options.flightStopovers.map(s => s.latlng), end];
+            const allArcs = [];
+
+            for (let i = 0; i < points.length - 1; i++) {
+                if (points[i] && points[i + 1]) { // Ensure valid points
+                    allArcs.push(...getArcPoints(points[i], points[i + 1]));
+                }
+            }
+            return allArcs;
+        } else if (options.flightStopLatLng) {
+            // Deprecated single stop support or fallback? 
+            // Better to migrate `flightStopLatLng` to `flightStopovers` array internally if possible, 
+            // but for now keeping back-compat or just treating it as one.
             const arc1 = getArcPoints(start, options.flightStopLatLng);
             const arc2 = getArcPoints(options.flightStopLatLng, end);
             return [...arc1, ...arc2];
@@ -228,31 +243,39 @@ const updateUI = () => {
             const method = end.travelMethod || 'car';
 
             // Async drawing
-            getRoute(start.latlng, end.latlng, method, { flightStopLatLng: end.flightStopLatLng }).then(latlngs => {
+            getRoute(start.latlng, end.latlng, method, { flightStopovers: end.flightStopovers, flightStopLatLng: end.flightStopLatLng }).then(latlngs => {
                 if (currentId !== uiUpdateId) return; // Ignore outdated result
 
                 // Check for flight stopover
-                if (method === 'plane' && end.flightStopLatLng) {
-                    const stopPos = end.flightStopLatLng;
+                if (method === 'plane') {
+                    const drawStopoverPing = (pos) => {
+                        // Draw Ping
+                        const ping = L.circleMarker(pos, {
+                            radius: 4,
+                            color: '#9b59b6', // Purple
+                            fillColor: '#9b59b6',
+                            fillOpacity: 1
+                        }).addTo(map);
 
-                    // Draw Ping
-                    const ping = L.circleMarker(stopPos, {
-                        radius: 4,
-                        color: '#9b59b6', // Purple
-                        fillColor: '#9b59b6',
-                        fillOpacity: 1
-                    }).addTo(map);
+                        // Add ripple animation via CSS or just another circle
+                        const ripple = L.circleMarker(pos, {
+                            radius: 8,
+                            color: '#9b59b6',
+                            fill: false,
+                            weight: 1,
+                            opacity: 0.5
+                        }).addTo(map);
+                        routeLayers.push(ping);
+                        routeLayers.push(ripple);
+                    };
 
-                    // Add ripple animation via CSS or just another circle
-                    const ripple = L.circleMarker(stopPos, {
-                        radius: 8,
-                        color: '#9b59b6',
-                        fill: false,
-                        weight: 1,
-                        opacity: 0.5
-                    }).addTo(map);
-                    routeLayers.push(ping);
-                    routeLayers.push(ripple);
+                    if (end.flightStopovers && end.flightStopovers.length > 0) {
+                        end.flightStopovers.forEach(s => {
+                            if (s.latlng) drawStopoverPing(s.latlng);
+                        });
+                    } else if (end.flightStopLatLng) {
+                        drawStopoverPing(end.flightStopLatLng);
+                    }
                 }
 
                 // Custom Rendering per Method
@@ -378,11 +401,27 @@ const updateUI = () => {
                                    onchange="updateFlightStops(${stop.id}, this.value)">
                        </div>
                        ${(stop.flightStops === undefined || stop.flightStops > 0) ? `
-                       <div class="stopover-input-container">
-                           <input type="text" placeholder="Stopover City (e.g. Dubai)"
-                                  value="${stop.flightStopName || ''}"
-                                  style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-family: inherit;"
-                                  onchange="updateFlightStopover(${stop.id}, this.value)">
+                       <div class="stopovers-list-container">
+                           ${(function () {
+                            const count = stop.flightStops !== undefined ? stop.flightStops : 1;
+                            let html = '';
+                            for (let i = 0; i < count; i++) {
+                                const val = (stop.flightStopovers && stop.flightStopovers[i]) ? stop.flightStopovers[i].name : (i === 0 && stop.flightStopName ? stop.flightStopName : '');
+                                html += `
+                                   <div class="stopover-input-container" style="margin-bottom: 4px;">
+                                       <input type="text" placeholder="Stopover ${i + 1} City"
+                                              class="stopover-name-input"
+                                              data-id="${stop.id}"
+                                              data-index="${i}"
+                                              value="${val || ''}"
+                                              style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-family: inherit;"
+                                              onchange="updateFlightStopover(${stop.id}, ${i}, this.value)"
+                                              autocomplete="off">
+                                       <div class="suggestions-dropdown" id="dropdown-stopover-${stop.id}-${i}" style="top: 100%; left: 0; right: 0;"></div>
+                                   </div>`;
+                            }
+                            return html;
+                        })()}
                        </div>
                        ` : ''}
                    </div>
@@ -444,7 +483,7 @@ const updateUI = () => {
                 </button>
             </div>
             
-            <div class="stop-coords">${stop.latlng.lat.toFixed(4)}, ${stop.latlng.lng.toFixed(4)}</div>
+
         `;
         stopsListEl.appendChild(li);
 
@@ -497,8 +536,24 @@ const addStop = (latlng) => {
 
     // Initial Default Name
     let name = null; // Use null to allow dynamic numbering
-    const travelMethod = 'car'; // Default
+    let travelMethod = 'car'; // Default
     const nights = 1; // Default
+
+    // Default transit logic based on duration
+    if (stops.length > 0) {
+        const last = stops[stops.length - 1];
+        const dist = last.latlng.distanceTo(latlng);
+        // Estimate driving time
+        const { hours } = calculateTime(dist, 'car');
+
+        if (hours < 2) {
+            travelMethod = 'car';
+        } else if (hours <= 6) {
+            travelMethod = 'train';
+        } else {
+            travelMethod = 'plane';
+        }
+    }
 
 
     // Enable dragging
@@ -635,39 +690,96 @@ window.adjustNights = (id, delta) => {
 window.updateFlightStops = (id, val) => {
     const stop = stops.find(s => s.id === id);
     if (stop) {
-        stop.flightStops = parseInt(val) || 0;
+        let count = parseInt(val) || 0;
+        if (count < 0) count = 0;
+        stop.flightStops = count;
+
+        // Ensure array exists and is sized correctly
+        if (!stop.flightStopovers) stop.flightStopovers = [];
+
+        // If we have single flightStopName/LatLng from before, migrate it to array if array is empty
+        if (stop.flightStopovers.length === 0 && stop.flightStopName) {
+            stop.flightStopovers.push({
+                name: stop.flightStopName,
+                latlng: stop.flightStopLatLng
+            });
+        }
+
+        // Clip or Grow
+        // Actually we don't need to explicitly grow with empty objects immediately, 
+        // the UI loop handles rendering. But for state consistency it's nice.
+        // Let's just keep the existing data if we reduce count, so if user accidentally reduces and increases, data is there?
+        // No, typically we slice.
+        // But for "Stop 1", "Stop 2" logic, maybe we slice.
+        // Let's not delete data aggressively.
+        // But updateUI renders loop based on count.
+
         updateUI();
     }
 };
 
-window.updateFlightStopover = (id, name) => {
+window.updateFlightStopover = (id, index, name) => {
     const stop = stops.find(s => s.id === id);
     if (stop) {
-        stop.flightStopName = name;
+        if (!stop.flightStopovers) stop.flightStopovers = [];
+
+        // Ensure object at index
+        if (!stop.flightStopovers[index]) stop.flightStopovers[index] = {};
+
+        stop.flightStopovers[index].name = name;
+
+        // Backward compat sync for first one
+        if (index === 0) {
+            stop.flightStopName = name;
+        }
+
         if (name.length > 2) {
             searchPlaces(name).then(res => {
                 if (res && res.length > 0) {
-                    stop.flightStopLatLng = new L.LatLng(res[0].lat, res[0].lon);
+                    const latlng = new L.LatLng(res[0].lat, res[0].lon);
+                    // Re-check existence
+                    if (!stop.flightStopovers[index]) stop.flightStopovers[index] = {};
+                    stop.flightStopovers[index].latlng = latlng;
+
+                    if (index === 0) stop.flightStopLatLng = latlng;
+
                     updateUI();
                 }
             });
         } else {
-            stop.flightStopLatLng = null;
+            if (stop.flightStopovers[index]) stop.flightStopovers[index].latlng = null;
+            if (index === 0) stop.flightStopLatLng = null;
             updateUI();
         }
     }
 };
 
 
+
 // Reorder Logic
-reorderBtn.addEventListener('click', () => {
+// Reorder Logic Shared
+const toggleReorderMode = () => {
     isReordering = !isReordering;
+
+    const setupButton = (btn, isReordering) => {
+        if (!btn) return;
+        if (isReordering) {
+            btn.innerHTML = `<i class="fa-solid fa-check"></i> Done`;
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-primary');
+        } else {
+            btn.innerHTML = `<i class="fa-solid fa-sort"></i> Reorder`;
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-secondary');
+        }
+    };
+
+    // Update both buttons visually
+    setupButton(reorderBtn, isReordering);
+    setupButton(reorderBtnMobile, isReordering);
 
     if (isReordering) {
         // Mode ON
-        reorderBtn.innerHTML = `<i class="fa-solid fa-check"></i> Done`;
-        reorderBtn.classList.remove('btn-secondary');
-        reorderBtn.classList.add('btn-primary');
         stopsListEl.classList.add('reordering');
 
         // Initialize Sortable
@@ -684,9 +796,6 @@ reorderBtn.addEventListener('click', () => {
 
     } else {
         // Mode OFF - SAVE CHANGES
-        reorderBtn.innerHTML = `<i class="fa-solid fa-sort"></i> Reorder`;
-        reorderBtn.classList.remove('btn-primary');
-        reorderBtn.classList.add('btn-secondary');
         stopsListEl.classList.remove('reordering');
 
         if (sortable) {
@@ -709,7 +818,24 @@ reorderBtn.addEventListener('click', () => {
             updateUI();
         }
     }
-});
+};
+
+reorderBtn.addEventListener('click', toggleReorderMode);
+if (reorderBtnMobile) {
+    reorderBtnMobile.addEventListener('click', toggleReorderMode);
+}
+
+// Undo Logic
+if (undoBtn) {
+    undoBtn.addEventListener('click', () => {
+        if (isReordering) return;
+        if (stops.length > 0) {
+            const lastStop = stops.pop();
+            map.removeLayer(lastStop.marker);
+            updateUI();
+        }
+    });
+}
 
 // Map Events
 map.on('click', (e) => {
@@ -745,11 +871,18 @@ sidebarToggle.addEventListener('click', () => {
 
 // Autocomplete Event Listeners
 stopsListEl.addEventListener('input', debounce(async (e) => {
-    if (e.target.classList.contains('stop-name-input')) {
+    if (e.target.classList.contains('stop-name-input') || e.target.classList.contains('stopover-name-input')) {
         const input = e.target;
         const stopId = input.dataset.id;
         const query = input.value;
-        const dropdown = document.getElementById(`dropdown-${stopId}`);
+
+        let dropdownId = `dropdown-${stopId}`;
+        if (input.classList.contains('stopover-name-input')) {
+            const index = input.dataset.index !== undefined ? input.dataset.index : 0;
+            dropdownId = `dropdown-stopover-${stopId}-${index}`;
+        }
+
+        const dropdown = document.getElementById(dropdownId);
 
         if (!dropdown) return;
 
@@ -782,13 +915,41 @@ stopsListEl.addEventListener('click', (e) => {
     const item = e.target.closest('.suggestion-item');
     if (item) {
         const dropdown = item.parentElement;
-        const stopId = parseInt(dropdown.id.replace('dropdown-', ''));
         const lat = parseFloat(item.dataset.lat);
         const lng = parseFloat(item.dataset.lon);
         // Use the first part of the display name (e.g. "Cologne") as the main name
         const displayName = item.dataset.name.split(',')[0];
 
-        updateStopLocationAndName(stopId, lat, lng, displayName);
+        if (dropdown.id.startsWith('dropdown-stopover-')) {
+            // ID format: dropdown-stopover-{id}-{index}
+            const parts = dropdown.id.replace('dropdown-stopover-', '').split('-');
+            const stopId = parseInt(parts[0]);
+            const index = parseInt(parts[1]);
+
+            // For stopover, we update the stopover name and location
+            const stop = stops.find(s => s.id === stopId);
+            if (stop) {
+                // Ensure array
+                if (!stop.flightStopovers) stop.flightStopovers = [];
+                if (!stop.flightStopovers[index]) stop.flightStopovers[index] = {};
+
+                stop.flightStopovers[index].name = displayName;
+                stop.flightStopovers[index].latlng = new L.LatLng(lat, lng);
+
+                // Back compat
+                if (index === 0) {
+                    stop.flightStopName = displayName;
+                    stop.flightStopLatLng = new L.LatLng(lat, lng);
+                }
+
+                updateUI();
+            }
+        } else {
+            // Normal Stop
+            const stopId = parseInt(dropdown.id.replace('dropdown-', ''));
+            updateStopLocationAndName(stopId, lat, lng, displayName);
+        }
+
         dropdown.classList.remove('active');
     }
 });
@@ -803,9 +964,10 @@ const playbackTimeDisplay = document.getElementById('playback-time');
 const speedDisplay = document.getElementById('speed-val');
 const speedUpBtn = document.getElementById('speed-up');
 const speedDownBtn = document.getElementById('speed-down');
+const centerBtn = document.getElementById('center-btn');
 
 // Speed State
-const speeds = [0.25, 0.5, 1, 2, 5];
+const speeds = [0.025, 0.1, 0.25, 0.5, 1, 2, 5];
 let currentSpeedIdx = 2; // Default 1x
 
 const updateSpeedUI = () => {
@@ -829,6 +991,32 @@ speedDownBtn.addEventListener('click', () => {
 // Play Trip Logic
 let playbackMarker = null;
 let isPlaying = false;
+let isCameraLocked = true;
+
+const updateCenterBtnUI = () => {
+    if (isCameraLocked) {
+        centerBtn.classList.remove('btn-secondary');
+        centerBtn.classList.add('btn-primary');
+    } else {
+        centerBtn.classList.remove('btn-primary');
+        centerBtn.classList.add('btn-secondary');
+    }
+};
+
+centerBtn.addEventListener('click', () => {
+    isCameraLocked = !isCameraLocked;
+    updateCenterBtnUI();
+    if (isCameraLocked && playbackMarker) {
+        map.panTo(playbackMarker.getLatLng(), { animate: true });
+    }
+});
+
+map.on('dragstart', () => {
+    if (isPlaying && isCameraLocked) {
+        isCameraLocked = false;
+        updateCenterBtnUI();
+    }
+});
 
 playBtn.addEventListener('click', async () => {
     if (isPlaying) {
@@ -840,6 +1028,9 @@ playBtn.addEventListener('click', async () => {
     if (stops.length < 2) return;
 
     isPlaying = true;
+    isCameraLocked = true;
+    updateCenterBtnUI();
+
     playBtn.innerHTML = `<i class="fa-solid fa-stop"></i>`;
     playbackTimeDisplay.style.display = 'block';
 
@@ -853,7 +1044,10 @@ playBtn.addEventListener('click', async () => {
             const method = end.travelMethod || 'car';
 
             // We re-fetch route to ensure we have the points for animation
-            const latlngs = await getRoute(start.latlng, end.latlng, method, { flightStopLatLng: end.flightStopLatLng });
+            const latlngs = await getRoute(start.latlng, end.latlng, method, {
+                flightStopovers: end.flightStopovers,
+                flightStopLatLng: end.flightStopLatLng
+            });
 
             // Calculate duration: 
             let dist = 0;
@@ -1008,7 +1202,9 @@ playBtn.addEventListener('click', async () => {
                     if (lat && lng) {
                         const newPos = [lat, lng];
                         playbackMarker.setLatLng(newPos);
-                        map.panTo(newPos, { animate: false });
+                        if (isCameraLocked) {
+                            map.panTo(newPos, { animate: false });
+                        }
                     }
 
                     if (progress < 1) {

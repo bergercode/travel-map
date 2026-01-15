@@ -60,7 +60,23 @@ body {
     flex-direction: column;
     box-shadow: var(--shadow-soft);
     padding: 24px;
+    padding-bottom: 90px;
+    /* Space for Floating Controls */
     transition: transform var(--transition-speed) ease;
+}
+
+.floating-controls {
+    position: absolute;
+    left: 44px;
+    /* 20px sidebar margin + 24px padding */
+    bottom: 44px;
+    /* 20px Sidebar Margin + 24px padding */
+    width: 302px;
+    /* 350px - 48px padding */
+    z-index: 1002;
+    display: flex;
+    flex-direction: column;
+    /* On desktop it sits "inside" the sidebar visually */
 }
 
 .sidebar-header {
@@ -80,6 +96,7 @@ body {
     font-size: 24px;
     background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -638,6 +655,17 @@ body {
     }
 }
 
+/* Playback Dock - Default Desktop Behavior */
+.playback-dock {
+    display: flex;
+    flex: 3;
+    gap: 6px;
+}
+
+.mobile-reorder-btn {
+    display: none;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .sidebar {
@@ -654,6 +682,53 @@ body {
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+
+    /* Move Playback Controls to Bottom on Mobile */
+    .floating-controls {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 90%;
+        max-width: 400px;
+        z-index: 2000;
+        background: var(--bg-glass);
+        backdrop-filter: blur(16px);
+        padding: 8px;
+        border-radius: 12px;
+        border: 1px solid var(--border-glass);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Ensure Time Display floats above it or modifies */
+    #playback-time {
+        /* Included in flow now or keep absolute? */
+        /* It's inside floating-controls now. standard flow is fine or margin top */
+        position: static;
+        width: 100% !important;
+        transform: none;
+        margin-top: 8px;
+    }
+
+    .sidebar {
+        padding-bottom: 24px;
+        /* Reset padding on mobile sidebar */
+    }
+
+    /* Hide Desktop Reorder Button in Floating Controls */
+    .floating-controls #reorder-btn {
+        display: none !important;
+    }
+
+    /* Show Mobile Reorder Button in Sidebar */
+    .mobile-reorder-btn {
+        display: flex !important;
+    }
+
+    /* Show Mobile Undo Button */
+    .mobile-undo-btn {
+        display: flex !important;
     }
 }
 
@@ -724,6 +799,10 @@ body {
 
 .suggestion-item:last-child {
     border-bottom: none;
+}
+
+.stopover-input-container {
+    position: relative;
 }
 
 .suggestion-item:hover {
