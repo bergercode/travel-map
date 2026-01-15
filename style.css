@@ -678,6 +678,11 @@ body {
         transform: translateX(0);
     }
 
+    /* Hide Controls when Sidebar is Open */
+    .sidebar.active ~ .floating-controls {
+        display: none;
+    }
+
     .sidebar-toggle {
         display: flex;
         align-items: center;

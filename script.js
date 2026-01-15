@@ -161,30 +161,48 @@ const getRoute = async (start, end, method, options = {}) => {
 
     let profile = 'driving';
     if (method === 'walk') profile = 'walking';
-    // Train/Bus will default to 'driving' for road mapping if available, else straight.
-    // However, Train tracks != Roads. OSRM driving is roads.
-    // If I use driving for Train, it will follow highways. 
-    // Maybe straight line is better for Train to represent "Tracks"?
-    // User said "mapped to quickest/direct train route". "Direct" usually means the track.
-    // Without a track router, straight line is the most honest "direct" representation.
-    // BUT user said "Car... mapped to quickest road", "Train... mapped to quickest train route".
-    // I cannot do train routing freely easily.
-    // I will use Straight Line for Train to differentiate it from Car (Roads).
-    // Train will now fall through to use OSRM 'driving' profile properties by default
-    // as requested by user ("behave like the road path option").
+    // Train/Bus will default to 'driving' for road mapping if available.
 
-    try {
-        const url = `https://router.project-osrm.org/route/v1/${profile}/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const json = await res.json();
-        if (json.routes && json.routes.length > 0) {
-            const coords = json.routes[0].geometry.coordinates;
-            // GeoJSON is [lng, lat], Leaflet wants [lat, lng]
-            return coords.map(c => [c[1], c[0]]);
-        }
-    } catch (e) {
-        console.error('Routing failed', e);
+    // Define OSRM Server Candidates
+    // We prioritize routing.openstreetmap.de as it is often more reliable than the demo server
+    const candidates = [];
+
+    // Candidate 1: routing.openstreetmap.de
+    // This server separates profiles into different URL paths
+    if (profile === 'driving') {
+        candidates.push(`https://routing.openstreetmap.de/routed-car/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`);
+    } else if (profile === 'walking') {
+        candidates.push(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`);
+    } else {
+        // Fallback for other profiles if added in future, trying car instance
+        candidates.push(`https://routing.openstreetmap.de/routed-car/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`);
     }
+
+    // Candidate 2: project-osrm.org (Original, often overloaded)
+    candidates.push(`https://router.project-osrm.org/route/v1/${profile}/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`);
+
+    for (const url of candidates) {
+        try {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 2000); // 2 second timeout per candidate
+
+            const res = await fetch(url, { signal: controller.signal });
+            clearTimeout(id);
+
+            if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+            const json = await res.json();
+            if (json.routes && json.routes.length > 0) {
+                const coords = json.routes[0].geometry.coordinates;
+                // GeoJSON is [lng, lat], Leaflet wants [lat, lng]
+                return coords.map(c => [c[1], c[0]]);
+            }
+        } catch (e) {
+            console.warn(`Routing failed on ${url}:`, e);
+            // Continue to next candidate
+        }
+    }
+
+    console.error('All routing providers failed. Using straight line fallback.');
     // Fallback: Return straight line as array of points [lat, lng]
     // Inputs start/end are Leaflet LatLng objects
     return [[start.lat, start.lng], [end.lat, end.lng]];
