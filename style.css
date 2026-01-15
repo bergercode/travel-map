@@ -40,8 +40,7 @@ body {
 }
 
 .map-locked {
-    cursor: not-allowed;
-    filter: grayscale(0.5);
+    cursor: default;
 }
 
 /* Sidebar */
@@ -97,8 +96,8 @@ body {
 
 .journey-stats {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
     margin-bottom: 16px;
     padding-bottom: 16px;
     border-bottom: 1px solid var(--border-glass);
@@ -114,7 +113,8 @@ body {
 }
 
 .stat-label {
-    font-size: 12px;
+    font-size: 10px;
+    /* Reduced to fit 3 columns better or keep 12px? I'll stick to previous or slightly smaller if needed. Previous was 12px. Let's keep 10px for safety in 3 col */
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -161,7 +161,8 @@ body {
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 0;
+    /* Changed to 0 to handle spacing via components */
     padding-left: 10px;
     /* Space for the timeline line */
     position: relative;
@@ -214,11 +215,17 @@ body {
     transition: all 0.2s ease;
     animation: slideIn 0.3s ease-out forwards;
     z-index: 1;
+    margin-bottom: 0px;
+    /* Reduced to connect to transit */
+    /* Space after stop item */
 }
+
+/* Reduce margin if transit component follows? No, transit component will handle its own spacing */
 
 .stops-list.reordering .stop-item {
     cursor: grab;
     border: 1px dashed rgba(255, 255, 255, 0.2);
+    margin-bottom: 16px;
 }
 
 .sortable-ghost {
@@ -248,7 +255,8 @@ body {
     content: '';
     position: absolute;
     left: -20px;
-    top: 50%;
+    top: 40px;
+    /* Adjusted to align with header/top */
     transform: translateY(-50%);
     width: 10px;
     height: 10px;
@@ -263,45 +271,126 @@ body {
     display: none;
 }
 
-.stop-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    gap: 8px;
+/* New Stop Card Layout */
+.stop-card-header {
+    margin-bottom: 12px;
 }
 
-/* Updated: Replaced .stop-name span with .stop-name-input */
+/* Updated: Name Input at Top */
 .stop-name-input {
     font-family: var(--font-family);
-    font-weight: 600;
-    font-size: 14px;
-    flex: 1;
-    background: transparent;
+    font-weight: 700;
+    font-size: 16px;
+    display: block;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    /* Make it slightly visible */
     border: 1px solid transparent;
     color: var(--text-color);
-    padding: 4px 6px;
-    border-radius: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
     transition: all 0.2s;
-    width: 100%;
-    min-width: 0;
-    /* Prevent overflow */
+    margin-bottom: 8px;
 }
 
 .stop-name-input:focus {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
     outline: none;
+    box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.2);
 }
 
 .stop-name-input:hover {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Controls Logic */
+.stop-controls-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stop-main-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nights-counter {
+    display: flex;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    padding: 2px 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nights-input {
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    width: 30px;
+    text-align: center;
+    font-weight: 600;
+    font-family: var(--font-family);
+    font-size: 12px;
+    appearance: textfield;
+    /* Remove arrows */
+}
+
+.nights-input::-webkit-outer-spin-button,
+.nights-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.nights-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: 2px;
+    padding-right: 4px;
+    text-transform: uppercase;
+}
+
+.night-adjust-btns {
+    display: flex;
+    gap: 2px;
+    margin-left: 4px;
+}
+
+.night-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: var(--text-color);
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.night-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.btn-plus {
+    color: #2ecc71;
+}
+
+.btn-minus {
+    color: #ff5e62;
 }
 
 .stop-type-badge {
     text-transform: uppercase;
     font-size: 10px;
-    padding: 2px 6px;
+    padding: 4px 8px;
     border-radius: 4px;
     font-weight: 700;
     letter-spacing: 0.5px;
@@ -327,27 +416,12 @@ body {
     color: #ff5e62;
 }
 
-/* Custom Select */
-.type-select {
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--text-color);
-    font-family: var(--font-family);
-    font-size: 11px;
-    padding: 4px 8px;
-    border-radius: 6px;
-    outline: none;
-    cursor: pointer;
-}
-
-.type-select:focus {
-    border-color: var(--primary-color);
-}
-
 .drag-handle {
     color: var(--text-muted);
     cursor: grab;
-    margin-right: 8px;
+    padding: 4px;
+    margin-right: 4px;
+    /* display: none; Handled by reorder class logic */
     display: none;
 }
 
@@ -356,12 +430,6 @@ body {
 }
 
 /* Controls */
-.stop-controls {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
 .delete-btn {
     background: none;
     border: none;
@@ -382,24 +450,7 @@ body {
     font-size: 11px;
     color: var(--text-muted);
     font-family: monospace;
-    margin-bottom: 6px;
-    padding-left: 6px;
-}
-
-.leg-info {
-    font-size: 11px;
-    color: var(--secondary-color);
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.stops-list.reordering .leg-info {
-    display: none;
-    /* Hide stats during reorder */
+    margin-top: 4px;
 }
 
 /* Footer */
@@ -456,6 +507,137 @@ body {
     /* Hidden on Desktop */
 }
 
+/* Transit Component - Separate Panel */
+.transit-item {
+    padding-left: 10px;
+    position: relative;
+    z-index: 0;
+    margin-bottom: 0;
+}
+
+.transit-item::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    background: var(--bg-glass);
+    border: 1px solid var(--text-muted);
+    border-radius: 50%;
+    z-index: 2;
+}
+
+.transit-container {
+    position: relative;
+    margin: 8px 0;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: fadeScale 0.3s ease-out forwards;
+}
+
+.transit-container.separate-transit {
+    border: 1px dashed rgba(79, 172, 254, 0.3);
+    background: rgba(16, 18, 27, 0.6);
+}
+
+.transit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.transit-time {
+    color: var(--secondary-color);
+    font-weight: 600;
+}
+
+.transit-options {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.transit-option-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 6px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.transit-option-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-color);
+}
+
+.transit-option-btn.active {
+    /* Fallback/Common active style */
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.transit-option-btn.btn-car.active {
+    background: rgba(0, 242, 254, 0.1);
+    border-color: rgba(0, 242, 254, 0.3);
+    color: #00f2fe;
+}
+
+.transit-option-btn.btn-train.active {
+    background: rgba(255, 159, 67, 0.1);
+    border-color: rgba(255, 159, 67, 0.3);
+    color: #ff9f43;
+}
+
+.transit-option-btn.btn-bus.active {
+    background: rgba(241, 196, 15, 0.1);
+    border-color: rgba(241, 196, 15, 0.3);
+    color: #f1c40f;
+}
+
+.transit-option-btn.btn-walk.active {
+    background: rgba(46, 204, 113, 0.1);
+    border-color: rgba(46, 204, 113, 0.3);
+    color: #2ecc71;
+}
+
+.transit-option-btn.btn-plane.active {
+    background: rgba(155, 89, 182, 0.1);
+    border-color: rgba(155, 89, 182, 0.3);
+    color: #9b59b6;
+}
+
+.stops-list.reordering .transit-item {
+    display: none;
+}
+
+@keyframes fadeScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .sidebar {
@@ -502,4 +684,101 @@ body {
 
 .custom-tooltip::before {
     border-top-color: var(--border-glass) !important;
+}
+
+/* Autocomplete Dropdown */
+.stop-card-header {
+    position: relative;
+    /* Ensure absolute children position relative to this */
+}
+
+.suggestions-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-glass);
+    border: 1px solid var(--border-glass);
+    border-radius: 8px;
+    z-index: 100;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(12px);
+    margin-top: 4px;
+    display: none;
+}
+
+.suggestions-dropdown.active {
+    display: block;
+}
+
+.suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+    font-size: 14px;
+    color: var(--text-color);
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.suggestion-item small {
+    display: block;
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+/* Playback Token */
+.travel-token {
+    z-index: 1000 !important;
+}
+
+.token-inner {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    border: 2px solid #fff;
+    font-size: 14px;
+    transform: translate(-3px, -3px);
+    /* Center adjustment if needed */
+}
+
+/* Speed Controls */
+.speed-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.speed-btn:hover {
+    color: #fff;
+}
+
+#speed-val {
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 20px;
+    text-align: center;
+    display: inline-block;
 }

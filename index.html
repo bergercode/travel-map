@@ -36,19 +36,38 @@
 
             <div class="journey-stats">
                 <div class="stat-item">
-                    <span class="stat-label">Total Stops</span>
+                    <span class="stat-label">Stops</span>
                     <span class="stat-value" id="total-stops">0</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Total Distance</span>
+                    <span class="stat-label">Distance</span>
                     <span class="stat-value" id="total-distance">0 km</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Days</span>
+                    <span class="stat-value" id="total-days">0</span>
                 </div>
             </div>
 
-            <div class="controls-bar">
-                <button id="reorder-btn" class="btn btn-sm btn-secondary" title="Reorder Stops">
-                    <i class="fa-solid fa-sort"></i> Reorder
-                </button>
+            <div class="controls-bar" style="flex-wrap: wrap; gap: 8px;">
+                <div class="control-group" style="display: flex; width: 100%; gap: 6px;">
+                    <button id="play-btn" class="btn btn-sm btn-secondary" style="flex: 1;" title="Play Trip">
+                        <i class="fa-solid fa-play"></i>
+                    </button>
+                    <div class="speed-control-wrapper btn btn-sm btn-secondary"
+                        style="flex: 2; display: flex; align-items: center; justify-content: space-between; padding: 0 5px;">
+                        <button id="speed-down" class="speed-btn"><i class="fa-solid fa-chevron-left"></i></button>
+                        <span id="speed-val">1x</span>
+                        <button id="speed-up" class="speed-btn"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                    <button id="reorder-btn" class="btn btn-sm btn-secondary" style="flex: 1;" title="Reorder Stops">
+                        <i class="fa-solid fa-sort"></i>
+                    </button>
+                </div>
+                <div id="playback-time" class="time-display"
+                    style="width: 100%; text-align: center; font-size: 13px; font-weight: 600; color: var(--secondary-color); background: rgba(0,0,0,0.3); padding: 4px; border-radius: 6px; display: none;">
+                    Day 1 <span style="opacity: 0.7;">08:00</span>
+                </div>
             </div>
 
             <div class="stops-container">
