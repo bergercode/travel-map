@@ -1,1 +1,26 @@
-Travel Planner 
+# Wanderlust - Travel Map
+
+**Wanderlust** is an interactive travel planning application designed to help you visualize your journeys. It allows you to plot stops on a map, calculate travel times between them, and simulate the entire trip with an animated playback feature.
+
+## What this app does
+- **Interactive Map**: Click to add stops and drag them to adjust positions.
+- **Route Calculation**: Automatically calculates routes and travel times for driving, flying, taking the train, or walking.
+- **Trip Simulation**: Watch an animated token travel along your route to get a real sense of distance and duration.
+- **Smart Adjustments**: Customize stop names, stay durations (nights), and specific transit methods.
+
+## How it's built
+This project is built using standard web technologies:
+- **HTML5 & CSS3**: For structure and styling, using a modern, glassmorphism aesthetic.
+- **Vanilla JavaScript**: For all application logic, state management, and UI updates.
+- **Open Source Libraries**:
+  - **[Leaflet](https://leafletjs.com/)**: The core mapping library used to display the map and handle interactions, powered by **OpenStreetMap** data.
+  - **[OSRM (Open Source Routing Machine)](http://project-osrm.org/)**: Used for calculating accurate driving and walking routes.
+  - **SortableJS**: For the drag-and-drop reordering of stops.
+  - **Font Awesome**: For icons.
+  - **Google Fonts (Outfit)**: For typography.
+
+## Why I built this
+I love planning trips and wanted something that gave a good visual representation of the travel time. Standard maps show the route, but I wanted to *feel* the journey—seeing how long legs take relative to each other and visualizing the flow of the entire trip.
+
+## The Challenge
+My challenge was to get familiar with **Google's Antigravity with Gemini 3 Pro** and see what I could build and get working within a strict **2-hour window**. This project serves as a testament to what's possible with modern AI-assisted coding tools in a short amount of time.
