@@ -22,10 +22,9 @@ const map = L.map('map', {
     attributionControl: false
 }).setView([20, 0], 2);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 19
+L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
+    maxZoom: 20,
+    attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>'
 }).addTo(map);
 
 L.control.zoom({ position: 'bottomright' }).addTo(map);
