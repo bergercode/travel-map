@@ -22,11 +22,21 @@ const map = L.map('map', {
     attributionControl: false
 }).setView([20, 0], 2);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+// Map Tiles
+const lightMode = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
     subdomains: 'abcd',
-    maxZoom: 19
-}).addTo(map);
+    maxZoom: 20
+});
+
+const darkMode = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 20
+});
+
+let isDarkMode = true;
+darkMode.addTo(map);
 
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 L.control.attribution({ position: 'bottomright' }).addTo(map);
@@ -799,49 +809,54 @@ const toggleReorderMode = () => {
     if (isReordering) {
         // Mode ON
         stopsListEl.classList.add('reordering');
+        mapContainer.classList.add('map-locked');
 
-        // Initialize Sortable
-        sortable = new Sortable(stopsListEl, {
+        // Disable map dragging
+        map.dragging.disable();
+
+        // Create Sortable
+        sortable = Sortable.create(stopsListEl, {
             animation: 150,
-            handle: '.drag-handle',
-            ghostClass: 'sortable-ghost',
-            // Filter out transit items from being draggable
-            filter: '.transit-item',
-            onMove: function (evt) {
-                return !evt.related.classList.contains('transit-item');
+            handle: '.stop-item', // Drag by whole item or handle?
+            // Actually let's use the handle
+            handle: '.stop-item',
+            // The handle is .drag-handle but we can make whole item draggable if we want.
+            // Let's use the whole item for now, or just the handle?
+            // If I look at CSS: `.stops-list.reordering .stop-item` has `cursor: grab`.
+            // Let's try whole item.
+            onEnd: (evt) => {
+                // Update array order
+                const item = stops.splice(evt.oldIndex, 1)[0];
+                stops.splice(evt.newIndex, 0, item);
+
+                // Update Types (Start/End)
+                // Actually updateUI handles types based on index, so just calling updateUI() is enough?
+                // Yes, but we need to update the model first. 
+                // Done above with splice.
+
+                // Redraw
+                updateUI();
             }
         });
 
     } else {
-        // Mode OFF - SAVE CHANGES
+        // Mode OFF
         stopsListEl.classList.remove('reordering');
+        mapContainer.classList.remove('map-locked');
+
+        map.dragging.enable();
 
         if (sortable) {
-            // Get new order
-            const itemEls = stopsListEl.querySelectorAll('.stop-item');
-            const newStops = [];
-
-            itemEls.forEach((el) => {
-                const id = parseInt(el.dataset.id);
-                const stop = stops.find(s => s.id === id);
-                if (stop) {
-                    newStops.push(stop);
-                }
-            });
-
-            stops = newStops;
             sortable.destroy();
             sortable = null;
-
-            updateUI();
         }
+
+        updateUI();
     }
 };
 
 reorderBtn.addEventListener('click', toggleReorderMode);
-if (reorderBtnMobile) {
-    reorderBtnMobile.addEventListener('click', toggleReorderMode);
-}
+reorderBtnMobile.addEventListener('click', toggleReorderMode);
 
 // Undo Logic
 if (undoBtn) {
@@ -1262,3 +1277,39 @@ playBtn.addEventListener('click', async () => {
         map.fitBounds(group.getBounds().pad(0.2));
     }
 });
+
+// Map Theme Toggle Logic
+window.toggleMapTheme = () => {
+    isDarkMode = !isDarkMode;
+
+    if (isDarkMode) {
+        map.removeLayer(lightMode);
+        darkMode.addTo(map);
+    } else {
+        map.removeLayer(darkMode);
+        lightMode.addTo(map);
+    }
+
+    // Update Icons
+    const iconClass = isDarkMode ? 'fa-moon' : 'fa-sun';
+    const desktopIcon = document.querySelector('#theme-toggle-btn i');
+    const mobileIcon = document.querySelector('#theme-toggle-mobile i');
+
+    if (desktopIcon) {
+        desktopIcon.className = `fa-solid ${iconClass}`;
+    }
+    if (mobileIcon) {
+        mobileIcon.className = `fa-solid ${iconClass}`;
+    }
+};
+
+const desktopToggleBtn = document.getElementById('theme-toggle-btn');
+const mobileToggleBtn = document.getElementById('theme-toggle-mobile');
+
+if (desktopToggleBtn) {
+    desktopToggleBtn.addEventListener('click', toggleMapTheme);
+}
+
+if (mobileToggleBtn) {
+    mobileToggleBtn.addEventListener('click', toggleMapTheme);
+}
