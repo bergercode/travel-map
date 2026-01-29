@@ -323,8 +323,10 @@ const updateUI = () => {
             const method = end.travelMethod || 'car';
 
             if (start.latlng && end.latlng) {
+                const activeFlightStopovers = (end.flightStopovers || []).slice(0, end.flightStops || 0);
+
                 // Async drawing
-                getRoute(start.latlng, end.latlng, method, { flightStopovers: end.flightStopovers, flightStopLatLng: end.flightStopLatLng }).then(latlngs => {
+                getRoute(start.latlng, end.latlng, method, { flightStopovers: activeFlightStopovers, flightStopLatLng: end.flightStopLatLng }).then(latlngs => {
                     if (currentId !== uiUpdateId) return; // Ignore outdated result
 
                     // Check for flight stopover
@@ -350,8 +352,8 @@ const updateUI = () => {
                             routeLayers.push(ripple);
                         };
 
-                        if (end.flightStopovers && end.flightStopovers.length > 0) {
-                            end.flightStopovers.forEach(s => {
+                        if (activeFlightStopovers && activeFlightStopovers.length > 0) {
+                            activeFlightStopovers.forEach(s => {
                                 if (s.latlng) drawStopoverPing(s.latlng);
                             });
                         } else if (end.flightStopLatLng) {
@@ -438,11 +440,41 @@ const updateUI = () => {
 
             // Only calc distance if both exist
             if (prev.latlng && stop.latlng) {
-                const dist = prev.latlng.distanceTo(stop.latlng);
-                totalDist += dist;
-
                 // Default method is car if not set
                 const method = stop.travelMethod || 'car';
+
+                let dist = 0;
+
+                // Calculate distance based on method and stopovers
+                if (method === 'plane' && stop.flightStopovers && stop.flightStopovers.length > 0) {
+                    // Multi-leg distance calculation
+                    let previousPoint = prev.latlng;
+
+                    // Slice to active stops only
+                    const activeStops = stop.flightStopovers.slice(0, stop.flightStops || 0);
+
+                    // 1. Start -> First Stopover
+                    // 2. Stopover -> Next Stopover
+                    activeStops.forEach(s => {
+                        if (s.latlng) {
+                            dist += previousPoint.distanceTo(s.latlng);
+                            previousPoint = s.latlng;
+                        }
+                    });
+
+                    // 3. Last Stopover -> Destination
+                    if (stop.latlng) {
+                        dist += previousPoint.distanceTo(stop.latlng);
+                    } else {
+                        dist += previousPoint.distanceTo(stop.latlng);
+                    }
+                } else {
+                    // Standard direct distance
+                    dist = prev.latlng.distanceTo(stop.latlng);
+                }
+
+                totalDist += dist;
+
                 const timeData = calculateTime(dist, method);
                 const timeStr = timeData.display;
                 totalTravelHours += timeData.hours;
