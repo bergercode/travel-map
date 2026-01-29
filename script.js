@@ -91,10 +91,15 @@ const debounce = (func, wait) => {
     };
 };
 
-const searchPlaces = async (query) => {
+const searchPlaces = async (query, type = null) => {
     if (!query || query.length < 3) return [];
     try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+        let q = query;
+        if (type === 'airport') {
+            // Append 'airport' to prioritize airport results
+            q += ' airport';
+        }
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5`);
         return await response.json();
     } catch (e) {
         console.error('Search failed', e);
@@ -323,8 +328,10 @@ const updateUI = () => {
             const method = end.travelMethod || 'car';
 
             if (start.latlng && end.latlng) {
+                const activeFlightStopovers = (end.flightStopovers || []).slice(0, end.flightStops || 0);
+
                 // Async drawing
-                getRoute(start.latlng, end.latlng, method, { flightStopovers: end.flightStopovers, flightStopLatLng: end.flightStopLatLng }).then(latlngs => {
+                getRoute(start.latlng, end.latlng, method, { flightStopovers: activeFlightStopovers, flightStopLatLng: end.flightStopLatLng }).then(latlngs => {
                     if (currentId !== uiUpdateId) return; // Ignore outdated result
 
                     // Check for flight stopover
@@ -350,8 +357,8 @@ const updateUI = () => {
                             routeLayers.push(ripple);
                         };
 
-                        if (end.flightStopovers && end.flightStopovers.length > 0) {
-                            end.flightStopovers.forEach(s => {
+                        if (activeFlightStopovers && activeFlightStopovers.length > 0) {
+                            activeFlightStopovers.forEach(s => {
                                 if (s.latlng) drawStopoverPing(s.latlng);
                             });
                         } else if (end.flightStopLatLng) {
@@ -438,12 +445,69 @@ const updateUI = () => {
 
             // Only calc distance if both exist
             if (prev.latlng && stop.latlng) {
-                const dist = prev.latlng.distanceTo(stop.latlng);
-                totalDist += dist;
-
                 // Default method is car if not set
                 const method = stop.travelMethod || 'car';
+
+                let dist = 0;
+
+                // Calculate distance based on method and stopovers
+                if (method === 'plane' && stop.flightStopovers && stop.flightStopovers.length > 0) {
+                    // Multi-leg distance calculation
+                    let previousPoint = prev.latlng;
+
+                    // Slice to active stops only
+                    const activeStops = stop.flightStopovers.slice(0, stop.flightStops || 0);
+
+                    // 1. Start -> First Stopover
+                    // 2. Stopover -> Next Stopover
+                    activeStops.forEach(s => {
+                        if (s.latlng) {
+                            dist += previousPoint.distanceTo(s.latlng);
+                            previousPoint = s.latlng;
+                        }
+                    });
+
+                    // 3. Last Stopover -> Destination
+                    if (stop.latlng) {
+                        dist += previousPoint.distanceTo(stop.latlng);
+                    } else {
+                        dist += previousPoint.distanceTo(stop.latlng);
+                    }
+                } else {
+                    // Standard direct distance
+                    dist = prev.latlng.distanceTo(stop.latlng);
+                }
+
+                totalDist += dist;
+
                 const timeData = calculateTime(dist, method);
+
+                // Add Layover Time (Plane)
+                if (method === 'plane' && stop.flightStopovers) {
+                    const activeStops = stop.flightStopovers.slice(0, stop.flightStops || 0);
+                    let layoverTotal = 0;
+                    activeStops.forEach(s => {
+                        layoverTotal += (parseFloat(s.layover) || 0);
+                    });
+
+                    if (layoverTotal > 0) {
+                        timeData.hours += layoverTotal;
+                        timeData.totalMinutes += Math.round(layoverTotal * 60);
+
+                        // Re-format display
+                        const h = Math.floor(timeData.totalMinutes / 60);
+                        const m = timeData.totalMinutes % 60;
+                        timeData.display = `${h} h ${m} min`;
+                        if (layoverTotal > 0) {
+                            // Optional: indicate layover included? The user request implies just updating the time.
+                            // "Make layover time add to transit card time and total time"
+                            // We might want to append " (incl. layover)"? 
+                            // User said: "Although the later is only shown in days so might not look like it's updated"
+                            // implying they just want the numbers to be correct.
+                        }
+                    }
+                }
+
                 const timeStr = timeData.display;
                 totalTravelHours += timeData.hours;
 
@@ -506,17 +570,30 @@ const updateUI = () => {
                                 let html = '';
                                 for (let i = 0; i < count; i++) {
                                     const val = (stop.flightStopovers && stop.flightStopovers[i]) ? stop.flightStopovers[i].name : (i === 0 && stop.flightStopName ? stop.flightStopName : '');
+                                    const layover = (stop.flightStopovers && stop.flightStopovers[i]) ? (stop.flightStopovers[i].layover || 0) : 0;
+
                                     html += `
-                                       <div class="stopover-input-container" style="margin-bottom: 4px;">
-                                           <input type="text" placeholder="Stopover ${i + 1} City"
-                                                  class="stopover-name-input"
-                                                  data-id="${stop.id}"
-                                                  data-index="${i}"
-                                                  value="${val || ''}"
-                                                  style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-family: inherit;"
-                                                  onchange="updateFlightStopover(${stop.id}, ${i}, this.value)"
-                                                  autocomplete="off">
-                                           <div class="suggestions-dropdown" id="dropdown-stopover-${stop.id}-${i}" style="top: 100%; left: 0; right: 0;"></div>
+                                       <div class="stopover-input-container" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dotted rgba(255,255,255,0.1);">
+                                           <div style="margin-bottom: 4px;">
+                                               <input type="text" placeholder="Stopover ${i + 1} City"
+                                                      class="stopover-name-input"
+                                                      data-id="${stop.id}"
+                                                      data-index="${i}"
+                                                      value="${val || ''}"
+                                                      style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-family: inherit;"
+                                                      onchange="updateFlightStopover(${stop.id}, ${i}, this.value)"
+                                                      autocomplete="off">
+                                               <div class="suggestions-dropdown" id="dropdown-stopover-${stop.id}-${i}" style="top: 100%; left: 0; right: 0;"></div>
+                                           </div>
+                                           <div style="display: flex; gap: 8px; align-items: center; padding-left: 4px; font-size: 11px; color: var(--text-muted); text-transform: uppercase;">
+                                               LAYOVER
+                                               <input type="number" min="0" step="0.5" value="${layover}" 
+                                                      id="layover-input-${stop.id}-${i}"
+                                                      placeholder="0"
+                                                      style="width: 50px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 3px; padding: 2px 4px; text-align: center; font-size: 11px; font-family: inherit;"
+                                                      onchange="updateFlightStopoverLayover(${stop.id}, ${i}, this.value)">
+                                               HOURS
+                                           </div>
                                        </div>`;
                                 }
                                 return html;
@@ -880,8 +957,34 @@ window.updateFlightStopover = (id, index, name) => {
         } else {
             if (stop.flightStopovers[index]) stop.flightStopovers[index].latlng = null;
             if (index === 0) stop.flightStopLatLng = null;
+            if (index === 0) stop.flightStopLatLng = null;
             updateUI();
         }
+    }
+};
+
+window.updateFlightStopoverLayover = (id, index, value) => {
+    const stop = stops.find(s => s.id === id);
+    if (stop) {
+        if (!stop.flightStopovers) stop.flightStopovers = [];
+        if (!stop.flightStopovers[index]) stop.flightStopovers[index] = {};
+
+        let val = parseFloat(value);
+        if (isNaN(val) || val < 0) val = 0;
+
+        stop.flightStopovers[index].layover = val;
+
+        // Trigger update to refresh time calculations
+        updateUI();
+
+        // Restore focus
+        setTimeout(() => {
+            const el = document.getElementById(`layover-input-${stop.id}-${index}`);
+            if (el) {
+                el.focus();
+                // el.select(); // Optional: select all
+            }
+        }, 0);
     }
 };
 
@@ -895,11 +998,11 @@ const toggleReorderMode = () => {
     const setupButton = (btn, isReordering) => {
         if (!btn) return;
         if (isReordering) {
-            btn.innerHTML = `<i class="fa-solid fa-check"></i> Done`;
+            btn.innerHTML = `< i class="fa-solid fa-check" ></i > Done`;
             btn.classList.remove('btn-secondary');
             btn.classList.add('btn-primary');
         } else {
-            btn.innerHTML = `<i class="fa-solid fa-sort"></i> Reorder`;
+            btn.innerHTML = `< i class="fa-solid fa-sort" ></i > Reorder`;
             btn.classList.remove('btn-primary');
             btn.classList.add('btn-secondary');
         }
@@ -925,7 +1028,7 @@ const toggleReorderMode = () => {
             handle: '.stop-item',
             // The handle is .drag-handle but we can make whole item draggable if we want.
             // Let's use the whole item for now, or just the handle?
-            // If I look at CSS: `.stops-list.reordering .stop-item` has `cursor: grab`.
+            // If I look at CSS: `.stops - list.reordering.stop - item` has `cursor: grab`.
             // Let's try whole item.
             onEnd: (evt) => {
                 // Update array order
@@ -1017,7 +1120,9 @@ stopsListEl.addEventListener('input', debounce(async (e) => {
         const query = input.value;
 
         let dropdownId = `dropdown-${stopId}`;
+        let isStopover = false;
         if (input.classList.contains('stopover-name-input')) {
+            isStopover = true;
             const index = input.dataset.index !== undefined ? input.dataset.index : 0;
             dropdownId = `dropdown-stopover-${stopId}-${index}`;
         }
@@ -1031,7 +1136,7 @@ stopsListEl.addEventListener('input', debounce(async (e) => {
             return;
         }
 
-        const results = await searchPlaces(query);
+        const results = await searchPlaces(query, isStopover ? 'airport' : null);
         if (results.length > 0) {
             dropdown.innerHTML = results.map(r => `
                 <div class="suggestion-item" 
@@ -1162,7 +1267,7 @@ playBtn.addEventListener('click', async () => {
     if (isPlaying) {
         // Stop logic if clicked while playing
         isPlaying = false;
-        playBtn.innerHTML = `<i class="fa-solid fa-play"></i>`;
+        playBtn.innerHTML = `< i class="fa-solid fa-play" ></i > `;
         return;
     }
     if (stops.length < 2) return;
@@ -1171,7 +1276,7 @@ playBtn.addEventListener('click', async () => {
     isCameraLocked = true;
     updateCenterBtnUI();
 
-    playBtn.innerHTML = `<i class="fa-solid fa-stop"></i>`;
+    playBtn.innerHTML = `< i class="fa-solid fa-stop" ></i > `;
     playbackTimeDisplay.style.display = 'block';
 
     try {
@@ -1225,7 +1330,7 @@ playBtn.addEventListener('click', async () => {
         const createMarker = (method) => {
             return L.divIcon({
                 className: 'travel-token',
-                html: `<div class="token-inner" style="background: ${getMethodColor(method)}"><i class="fa-solid ${icons[method]}"></i></div>`,
+                html: `< div class="token-inner" style = "background: ${getMethodColor(method)}" > <i class="fa-solid ${icons[method]}"></i></div > `,
                 iconSize: [32, 32],
                 iconAnchor: [16, 16]
             });
@@ -1374,7 +1479,7 @@ playBtn.addEventListener('click', async () => {
     } finally {
         // Finish
         isPlaying = false;
-        playBtn.innerHTML = `<i class="fa-solid fa-play"></i>`;
+        playBtn.innerHTML = `< i class="fa-solid fa-play" ></i > `;
         playbackTimeDisplay.style.display = 'none';
         if (playbackMarker) {
             map.removeLayer(playbackMarker);
@@ -1403,10 +1508,10 @@ window.toggleMapTheme = () => {
     const mobileIcon = document.querySelector('#theme-toggle-mobile i');
 
     if (desktopIcon) {
-        desktopIcon.className = `fa-solid ${iconClass}`;
+        desktopIcon.className = `fa - solid ${iconClass} `;
     }
     if (mobileIcon) {
-        mobileIcon.className = `fa-solid ${iconClass}`;
+        mobileIcon.className = `fa - solid ${iconClass} `;
     }
 };
 
