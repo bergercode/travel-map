@@ -420,7 +420,8 @@ const updateUI = () => {
 
     let totalDist = 0;
     let totalTravelHours = 0;
-    const totalNights = stops.reduce((acc, stop) => acc + (parseInt(stop.nights) || 0), 0);
+    // Exclude start location (index 0) from total nights
+    const totalNights = stops.reduce((acc, stop, index) => acc + (index === 0 ? 0 : (parseInt(stop.nights) || 0)), 0);
 
     stops.forEach((stop, index) => {
         // Determine implicit type
@@ -485,14 +486,23 @@ const updateUI = () => {
                         <div class="flight-details" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1);">
                            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
                                 <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Stops</span>
-                                <input type="number" min="0" value="${stop.flightStops !== undefined ? stop.flightStops : 1}" 
+                                <input type="number" min="0" value="${stop.flightStops !== undefined ? stop.flightStops : 0}" 
                                        style="width: 40px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 2px 4px; text-align: center;"
                                        onchange="updateFlightStops(${stop.id}, this.value)">
+                                <div class="night-adjust-btns" style="margin-left: 2px;">
+                                   <button class="night-btn btn-plus" onclick="adjustFlightStops(${stop.id}, 1)">+</button>
+                                   <button class="night-btn btn-minus" onclick="adjustFlightStops(${stop.id}, -1)">-</button>
+                                </div>
+                                ${(stop.flightStops !== undefined && stop.flightStops > 0) ? `
+                                <button class="btn-toggle-stops" onclick="toggleFlightStops(${stop.id})" style="margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;">
+                                    <i class="fa-solid fa-chevron-${stop.isFlightStopsCollapsed ? 'down' : 'up'}"></i>
+                                </button>
+                                ` : ''}
                            </div>
-                           ${(stop.flightStops === undefined || stop.flightStops > 0) ? `
+                           ${(stop.flightStops === undefined || stop.flightStops > 0) && !stop.isFlightStopsCollapsed ? `
                            <div class="stopovers-list-container">
                                ${(function () {
-                                const count = stop.flightStops !== undefined ? stop.flightStops : 1;
+                                const count = stop.flightStops !== undefined ? stop.flightStops : 0;
                                 let html = '';
                                 for (let i = 0; i < count; i++) {
                                     const val = (stop.flightStopovers && stop.flightStopovers[i]) ? stop.flightStopovers[i].name : (i === 0 && stop.flightStopName ? stop.flightStopName : '');
@@ -552,6 +562,7 @@ const updateUI = () => {
                     <i class="fa-solid fa-grip-lines drag-handle"></i>
                     ${typeBadge}
                     
+                    ${type !== 'start' ? `
                     <div class="nights-counter" title="Nights at this stop">
                         <i class="fa-solid fa-moon" style="font-size: 10px; color: #a0a0b0; margin-right: 4px;"></i>
                         <input type="number" 
@@ -565,7 +576,7 @@ const updateUI = () => {
                            <button class="night-btn btn-plus" onclick="adjustNights(${stop.id}, 1)">+</button>
                            <button class="night-btn btn-minus" onclick="adjustNights(${stop.id}, -1)">-</button>
                         </div>
-                    </div>
+                    </div>` : ''}
                 </div>
                 
                 <button class="delete-btn" onclick="removeStop(${stop.id})" title="Remove Stop">
@@ -815,6 +826,25 @@ window.updateFlightStops = (id, val) => {
         // Let's not delete data aggressively.
         // But updateUI renders loop based on count.
 
+        updateUI();
+    }
+};
+
+window.adjustFlightStops = (id, delta) => {
+    const stop = stops.find(s => s.id === id);
+    if (stop) {
+        let count = (stop.flightStops !== undefined ? stop.flightStops : 0) + delta;
+        if (count < 0) count = 0;
+        updateFlightStops(id, count);
+    }
+};
+
+
+
+window.toggleFlightStops = (id) => {
+    const stop = stops.find(s => s.id === id);
+    if (stop) {
+        stop.isFlightStopsCollapsed = !stop.isFlightStopsCollapsed;
         updateUI();
     }
 };
