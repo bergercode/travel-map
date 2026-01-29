@@ -998,11 +998,11 @@ const toggleReorderMode = () => {
     const setupButton = (btn, isReordering) => {
         if (!btn) return;
         if (isReordering) {
-            btn.innerHTML = `< i class="fa-solid fa-check" ></i > Done`;
+            btn.innerHTML = `<i class="fa-solid fa-check"></i> Done`;
             btn.classList.remove('btn-secondary');
             btn.classList.add('btn-primary');
         } else {
-            btn.innerHTML = `< i class="fa-solid fa-sort" ></i > Reorder`;
+            btn.innerHTML = `<i class="fa-solid fa-sort"></i> Reorder`;
             btn.classList.remove('btn-primary');
             btn.classList.add('btn-secondary');
         }
@@ -1267,7 +1267,7 @@ playBtn.addEventListener('click', async () => {
     if (isPlaying) {
         // Stop logic if clicked while playing
         isPlaying = false;
-        playBtn.innerHTML = `< i class="fa-solid fa-play" ></i > `;
+        playBtn.innerHTML = `<i class="fa-solid fa-play"></i>`;
         return;
     }
     if (stops.length < 2) return;
@@ -1276,8 +1276,8 @@ playBtn.addEventListener('click', async () => {
     isCameraLocked = true;
     updateCenterBtnUI();
 
-    playBtn.innerHTML = `< i class="fa-solid fa-stop" ></i > `;
-    playbackTimeDisplay.style.display = 'block';
+    playBtn.innerHTML = `<i class="fa-solid fa-stop"></i>`;
+    playbackTimeDisplay.style.display = 'flex';
 
     try {
         // 1. Gather all segments with detailed geometry
@@ -1330,7 +1330,7 @@ playBtn.addEventListener('click', async () => {
         const createMarker = (method) => {
             return L.divIcon({
                 className: 'travel-token',
-                html: `< div class="token-inner" style = "background: ${getMethodColor(method)}" > <i class="fa-solid ${icons[method]}"></i></div > `,
+                html: `<div class="token-inner" style="background: ${getMethodColor(method)}"><i class="fa-solid ${icons[method]}"></i></div>`,
                 iconSize: [32, 32],
                 iconAnchor: [16, 16]
             });
@@ -1479,7 +1479,7 @@ playBtn.addEventListener('click', async () => {
     } finally {
         // Finish
         isPlaying = false;
-        playBtn.innerHTML = `< i class="fa-solid fa-play" ></i > `;
+        playBtn.innerHTML = `<i class="fa-solid fa-play"></i>`;
         playbackTimeDisplay.style.display = 'none';
         if (playbackMarker) {
             map.removeLayer(playbackMarker);
@@ -1508,10 +1508,10 @@ window.toggleMapTheme = () => {
     const mobileIcon = document.querySelector('#theme-toggle-mobile i');
 
     if (desktopIcon) {
-        desktopIcon.className = `fa - solid ${iconClass} `;
+        desktopIcon.className = `fa-solid ${iconClass}`;
     }
     if (mobileIcon) {
-        mobileIcon.className = `fa - solid ${iconClass} `;
+        mobileIcon.className = `fa-solid ${iconClass}`;
     }
 };
 

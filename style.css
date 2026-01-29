@@ -506,10 +506,8 @@ body {
 }
 
 /* Mobile Toggle */
+/* Mobile Toggle */
 .sidebar-toggle {
-    position: absolute;
-    top: 20px;
-    right: 20px;
     width: 44px;
     height: 44px;
     border-radius: 12px;
@@ -520,8 +518,9 @@ body {
     font-size: 18px;
     cursor: pointer;
     z-index: 1001;
-    display: none;
-    /* Hidden on Desktop */
+    display: none; /* Hidden on Desktop */
+    align-items: center;
+    justify-content: center;
 }
 
 /* Transit Component - Separate Panel */
@@ -868,11 +867,38 @@ body {
 }
 
 /* Map Theme Toggle (Desktop) */
-.map-theme-toggle {
+/* Top Right Controls Container */
+.top-controls {
     position: absolute;
     top: 20px;
     right: 20px;
-    z-index: 1000;
+    z-index: 1005;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    pointer-events: none;
+}
+
+.top-controls > * {
+    pointer-events: auto;
+}
+
+.time-display {
+    background: var(--bg-glass);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border-glass);
+    color: var(--secondary-color);
+    padding: 0 16px;
+    height: 44px;
+    border-radius: 12px;
+    box-shadow: var(--shadow-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    min-width: 120px;
+    font-family: var(--font-family);
 }
 
 .theme-btn {
@@ -900,9 +926,8 @@ body {
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
-    .map-theme-toggle {
+    #theme-toggle-btn {
         display: none;
-        /* Hide top-right toggle on mobile, use sidebar one */
     }
 }
 
