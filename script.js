@@ -234,10 +234,62 @@ window.updateStopLocationAndName = (id, lat, lng, name) => {
     if (stop) {
         const newLatLng = new L.LatLng(lat, lng);
         stop.latlng = newLatLng;
-        stop.marker.setLatLng(newLatLng);
-        stop.name = name;
 
-        updateUI(); // Full update to refresh lines and distances
+        if (!stop.marker) {
+            stop.marker = L.marker(newLatLng, { draggable: true }).addTo(map);
+
+            // Bind Tooltip
+            stop.marker.bindTooltip('', {
+                direction: 'top',
+                offset: [0, -10],
+                opacity: 0.95,
+                className: 'custom-tooltip'
+            });
+
+            // Drag Event
+            stop.marker.on('dragend', (e) => {
+                const newPos = e.target.getLatLng();
+                stop.latlng = newPos;
+
+                // Reverse Geocode
+                reverseGeocode(newPos.lat, newPos.lng).then(foundName => {
+                    if (foundName) {
+                        const input = document.querySelector(`.stop-name-input[data-id="${id}"]`);
+                        if (input && document.activeElement === input) return;
+
+                        stop.name = foundName;
+                        updateMarkerInfo(stop, stops.indexOf(stop), stop.type);
+                        if (input) input.value = foundName;
+                    }
+                    updateUI();
+                });
+                updateUI();
+            });
+        } else {
+            stop.marker.setLatLng(newLatLng);
+        }
+
+        // Auto-select travel method if not already set by user (or if currently default 'car')
+        // Logic: Compare with previous stop
+        const index = stops.indexOf(stop);
+        if (index > 0) {
+            const prev = stops[index - 1];
+            if (prev && prev.latlng) {
+                const dist = prev.latlng.distanceTo(newLatLng);
+                const { hours } = calculateTime(dist, 'car');
+
+                // Only override if it seems to be default 'car' or we want to force update on location change?
+                // Users might have manually set it, so maybe only update if it matches the *previous* default?
+                // Or just update it always on location change because location change invalidates the method choice usually?
+                // Let's update it.
+                if (hours < 2) stop.travelMethod = 'car';
+                else if (hours <= 6) stop.travelMethod = 'train';
+                else stop.travelMethod = 'plane';
+            }
+        }
+
+        stop.name = name;
+        updateUI();
     }
 };
 
@@ -270,75 +322,77 @@ const updateUI = () => {
             // Yes.
             const method = end.travelMethod || 'car';
 
-            // Async drawing
-            getRoute(start.latlng, end.latlng, method, { flightStopovers: end.flightStopovers, flightStopLatLng: end.flightStopLatLng }).then(latlngs => {
-                if (currentId !== uiUpdateId) return; // Ignore outdated result
+            if (start.latlng && end.latlng) {
+                // Async drawing
+                getRoute(start.latlng, end.latlng, method, { flightStopovers: end.flightStopovers, flightStopLatLng: end.flightStopLatLng }).then(latlngs => {
+                    if (currentId !== uiUpdateId) return; // Ignore outdated result
 
-                // Check for flight stopover
-                if (method === 'plane') {
-                    const drawStopoverPing = (pos) => {
-                        // Draw Ping
-                        const ping = L.circleMarker(pos, {
-                            radius: 4,
-                            color: '#9b59b6', // Purple
-                            fillColor: '#9b59b6',
-                            fillOpacity: 1
-                        }).addTo(map);
+                    // Check for flight stopover
+                    if (method === 'plane') {
+                        const drawStopoverPing = (pos) => {
+                            // Draw Ping
+                            const ping = L.circleMarker(pos, {
+                                radius: 4,
+                                color: '#9b59b6', // Purple
+                                fillColor: '#9b59b6',
+                                fillOpacity: 1
+                            }).addTo(map);
 
-                        // Add ripple animation via CSS or just another circle
-                        const ripple = L.circleMarker(pos, {
-                            radius: 8,
-                            color: '#9b59b6',
-                            fill: false,
-                            weight: 1,
-                            opacity: 0.5
-                        }).addTo(map);
-                        routeLayers.push(ping);
-                        routeLayers.push(ripple);
-                    };
+                            // Add ripple animation via CSS or just another circle
+                            const ripple = L.circleMarker(pos, {
+                                radius: 8,
+                                color: '#9b59b6',
+                                fill: false,
+                                weight: 1,
+                                opacity: 0.5
+                            }).addTo(map);
+                            routeLayers.push(ping);
+                            routeLayers.push(ripple);
+                        };
 
-                    if (end.flightStopovers && end.flightStopovers.length > 0) {
-                        end.flightStopovers.forEach(s => {
-                            if (s.latlng) drawStopoverPing(s.latlng);
-                        });
-                    } else if (end.flightStopLatLng) {
-                        drawStopoverPing(end.flightStopLatLng);
+                        if (end.flightStopovers && end.flightStopovers.length > 0) {
+                            end.flightStopovers.forEach(s => {
+                                if (s.latlng) drawStopoverPing(s.latlng);
+                            });
+                        } else if (end.flightStopLatLng) {
+                            drawStopoverPing(end.flightStopLatLng);
+                        }
                     }
-                }
 
-                // Custom Rendering per Method
-                if (method === 'train') {
-                    // Railway Style: Dashed line over solid line
-                    const bgPoly = L.polyline(latlngs, {
-                        color: getMethodColor(method),
-                        weight: 6,
-                        opacity: 0.8,
-                        lineCap: 'butt'
-                    }).addTo(map);
+                    // Custom Rendering per Method
+                    if (method === 'train') {
+                        // Railway Style: Dashed line over solid line
+                        const bgPoly = L.polyline(latlngs, {
+                            color: getMethodColor(method),
+                            weight: 6,
+                            opacity: 0.8,
+                            lineCap: 'butt'
+                        }).addTo(map);
 
-                    const dashPoly = L.polyline(latlngs, {
-                        color: '#fff', // White dashes
-                        weight: 3,
-                        opacity: 0.6,
-                        dashArray: '10, 10',
-                        lineCap: 'butt'
-                    }).addTo(map);
+                        const dashPoly = L.polyline(latlngs, {
+                            color: '#fff', // White dashes
+                            weight: 3,
+                            opacity: 0.6,
+                            dashArray: '10, 10',
+                            lineCap: 'butt'
+                        }).addTo(map);
 
-                    routeLayers.push(bgPoly);
-                    routeLayers.push(dashPoly);
-                } else {
-                    // Standard Style
-                    const color = getMethodColor(method);
-                    const poly = L.polyline(latlngs, {
-                        color: color,
-                        weight: 4,
-                        opacity: 0.8,
-                        dashArray: method === 'plane' ? '10, 10' : null, // Dashed for planes
-                        lineCap: 'round'
-                    }).addTo(map);
-                    routeLayers.push(poly);
-                }
-            });
+                        routeLayers.push(bgPoly);
+                        routeLayers.push(dashPoly);
+                    } else {
+                        // Standard Style
+                        const color = getMethodColor(method);
+                        const poly = L.polyline(latlngs, {
+                            color: color,
+                            weight: 4,
+                            opacity: 0.8,
+                            dashArray: method === 'plane' ? '10, 10' : null, // Dashed for planes
+                            lineCap: 'round'
+                        }).addTo(map);
+                        routeLayers.push(poly);
+                    }
+                });
+            }
         }
     }
 
@@ -347,6 +401,10 @@ const updateUI = () => {
             <li class="empty-state">
                 <i class="fa-regular fa-map"></i>
                 <p>Click on the map to add your start point</p>
+                <div style="margin-top: 10px; opacity: 0.7;">or</div>
+                <button class="btn btn-primary" onclick="addStopFromButton()" style="margin-top: 10px;">
+                    <i class="fa-solid fa-play"></i> Start
+                </button>
             </li>`;
 
         totalStopsEl.innerText = '0';
@@ -376,87 +434,91 @@ const updateUI = () => {
         // Render Transit (Leg) Component if not first
         if (index > 0) {
             const prev = stops[index - 1];
-            const dist = prev.latlng.distanceTo(stop.latlng);
-            totalDist += dist;
 
-            // Default method is car if not set
-            const method = stop.travelMethod || 'car';
-            const timeData = calculateTime(dist, method);
-            const timeStr = timeData.display;
-            totalTravelHours += timeData.hours;
+            // Only calc distance if both exist
+            if (prev.latlng && stop.latlng) {
+                const dist = prev.latlng.distanceTo(stop.latlng);
+                totalDist += dist;
 
-            // Create SEPARATE list item for transit
-            const transitLi = document.createElement('li');
-            transitLi.className = 'transit-item';
-            transitLi.innerHTML = `
-                <div class="transit-container separate-transit">
-                    <div class="transit-header">
-                        <span>
-                            <i class="fa-solid fa-${method === 'walk' ? 'person-walking' : method}" style="margin-right: 6px; color: var(--secondary-color);"></i>
-                            ${method.charAt(0).toUpperCase() + method.slice(1)}
-                            <span style="opacity: 0.5; margin-left: 8px; font-weight: 400;">${formatDistance(dist)}</span>
-                        </span>
-                        <span class="transit-time">${timeStr}</span>
-                    </div>
-                    <div class="transit-options">
-                        <button class="transit-option-btn btn-car ${method === 'car' ? 'active' : ''}" 
-                                onclick="setTravelMethod(${stop.id}, 'car')" title="Car">
-                            <i class="fa-solid fa-car"></i>
-                        </button>
-                        <button class="transit-option-btn btn-bus ${method === 'bus' ? 'active' : ''}" 
-                                onclick="setTravelMethod(${stop.id}, 'bus')" title="Bus">
-                            <i class="fa-solid fa-bus"></i>
-                        </button>
-                        <button class="transit-option-btn btn-train ${method === 'train' ? 'active' : ''}" 
-                                onclick="setTravelMethod(${stop.id}, 'train')" title="Train">
-                            <i class="fa-solid fa-train"></i>
-                        </button>
-                        <button class="transit-option-btn btn-walk ${method === 'walk' ? 'active' : ''}" 
-                                onclick="setTravelMethod(${stop.id}, 'walk')" title="Walk">
-                            <i class="fa-solid fa-person-walking"></i>
-                        </button>
-                        <button class="transit-option-btn btn-plane ${method === 'plane' ? 'active' : ''}" 
-                                onclick="setTravelMethod(${stop.id}, 'plane')" title="Flight">
-                            <i class="fa-solid fa-plane"></i>
-                        </button>
-                    </div>
-                    ${method === 'plane' ? `
-                    <div class="flight-details" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1);">
-                       <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-                            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Stops</span>
-                            <input type="number" min="0" value="${stop.flightStops !== undefined ? stop.flightStops : 1}" 
-                                   style="width: 40px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 2px 4px; text-align: center;"
-                                   onchange="updateFlightStops(${stop.id}, this.value)">
+                // Default method is car if not set
+                const method = stop.travelMethod || 'car';
+                const timeData = calculateTime(dist, method);
+                const timeStr = timeData.display;
+                totalTravelHours += timeData.hours;
+
+                // Create SEPARATE list item for transit
+                const transitLi = document.createElement('li');
+                transitLi.className = 'transit-item';
+                transitLi.innerHTML = `
+                    <div class="transit-container separate-transit">
+                        <div class="transit-header">
+                            <span>
+                                <i class="fa-solid fa-${method === 'walk' ? 'person-walking' : method}" style="margin-right: 6px; color: var(--secondary-color);"></i>
+                                ${method.charAt(0).toUpperCase() + method.slice(1)}
+                                <span style="opacity: 0.5; margin-left: 8px; font-weight: 400;">${formatDistance(dist)}</span>
+                            </span>
+                            <span class="transit-time">${timeStr}</span>
+                        </div>
+                        <div class="transit-options">
+                            <button class="transit-option-btn btn-car ${method === 'car' ? 'active' : ''}" 
+                                    onclick="setTravelMethod(${stop.id}, 'car')" title="Car">
+                                <i class="fa-solid fa-car"></i>
+                            </button>
+                            <button class="transit-option-btn btn-bus ${method === 'bus' ? 'active' : ''}" 
+                                    onclick="setTravelMethod(${stop.id}, 'bus')" title="Bus">
+                                <i class="fa-solid fa-bus"></i>
+                            </button>
+                            <button class="transit-option-btn btn-train ${method === 'train' ? 'active' : ''}" 
+                                    onclick="setTravelMethod(${stop.id}, 'train')" title="Train">
+                                <i class="fa-solid fa-train"></i>
+                            </button>
+                            <button class="transit-option-btn btn-walk ${method === 'walk' ? 'active' : ''}" 
+                                    onclick="setTravelMethod(${stop.id}, 'walk')" title="Walk">
+                                <i class="fa-solid fa-person-walking"></i>
+                            </button>
+                            <button class="transit-option-btn btn-plane ${method === 'plane' ? 'active' : ''}" 
+                                    onclick="setTravelMethod(${stop.id}, 'plane')" title="Flight">
+                                <i class="fa-solid fa-plane"></i>
+                            </button>
+                        </div>
+                        ${method === 'plane' ? `
+                        <div class="flight-details" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                           <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                                <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Stops</span>
+                                <input type="number" min="0" value="${stop.flightStops !== undefined ? stop.flightStops : 1}" 
+                                       style="width: 40px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 2px 4px; text-align: center;"
+                                       onchange="updateFlightStops(${stop.id}, this.value)">
+                           </div>
+                           ${(stop.flightStops === undefined || stop.flightStops > 0) ? `
+                           <div class="stopovers-list-container">
+                               ${(function () {
+                                const count = stop.flightStops !== undefined ? stop.flightStops : 1;
+                                let html = '';
+                                for (let i = 0; i < count; i++) {
+                                    const val = (stop.flightStopovers && stop.flightStopovers[i]) ? stop.flightStopovers[i].name : (i === 0 && stop.flightStopName ? stop.flightStopName : '');
+                                    html += `
+                                       <div class="stopover-input-container" style="margin-bottom: 4px;">
+                                           <input type="text" placeholder="Stopover ${i + 1} City"
+                                                  class="stopover-name-input"
+                                                  data-id="${stop.id}"
+                                                  data-index="${i}"
+                                                  value="${val || ''}"
+                                                  style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-family: inherit;"
+                                                  onchange="updateFlightStopover(${stop.id}, ${i}, this.value)"
+                                                  autocomplete="off">
+                                           <div class="suggestions-dropdown" id="dropdown-stopover-${stop.id}-${i}" style="top: 100%; left: 0; right: 0;"></div>
+                                       </div>`;
+                                }
+                                return html;
+                            })()}
+                           </div>
+                           ` : ''}
                        </div>
-                       ${(stop.flightStops === undefined || stop.flightStops > 0) ? `
-                       <div class="stopovers-list-container">
-                           ${(function () {
-                            const count = stop.flightStops !== undefined ? stop.flightStops : 1;
-                            let html = '';
-                            for (let i = 0; i < count; i++) {
-                                const val = (stop.flightStopovers && stop.flightStopovers[i]) ? stop.flightStopovers[i].name : (i === 0 && stop.flightStopName ? stop.flightStopName : '');
-                                html += `
-                                   <div class="stopover-input-container" style="margin-bottom: 4px;">
-                                       <input type="text" placeholder="Stopover ${i + 1} City"
-                                              class="stopover-name-input"
-                                              data-id="${stop.id}"
-                                              data-index="${i}"
-                                              value="${val || ''}"
-                                              style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-family: inherit;"
-                                              onchange="updateFlightStopover(${stop.id}, ${i}, this.value)"
-                                              autocomplete="off">
-                                       <div class="suggestions-dropdown" id="dropdown-stopover-${stop.id}-${i}" style="top: 100%; left: 0; right: 0;"></div>
-                                   </div>`;
-                            }
-                            return html;
-                        })()}
-                       </div>
-                       ` : ''}
-                   </div>
-                    ` : ''}
-                </div>
-            `;
-            stopsListEl.appendChild(transitLi);
+                        ` : ''}
+                    </div>
+                `;
+                stopsListEl.appendChild(transitLi);
+            }
         }
 
         const li = document.createElement('li');
@@ -515,9 +577,24 @@ const updateUI = () => {
         `;
         stopsListEl.appendChild(li);
 
-        // Update marker tooltip while we are at it
-        updateMarkerInfo(stop, index, type);
+        // Update marker tooltip (ONLY if marker exists)
+        if (stop.marker) {
+            updateMarkerInfo(stop, index, type);
+        }
     });
+
+    // Add "Plus" Button if we have at least one stop (Start)
+    // Only show if NOT reordering
+    if (stops.length > 0 && !isReordering) {
+        const addLi = document.createElement('li');
+        addLi.className = 'add-stop-item';
+        addLi.innerHTML = `
+            <button class="btn-add-stop" onclick="addStopFromButton()" title="Add Stop">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+         `;
+        stopsListEl.appendChild(addLi);
+    }
 
     stopsListEl.scrollTop = stopsListEl.scrollHeight;
     totalStopsEl.innerText = stops.length;
@@ -553,98 +630,92 @@ const updateUI = () => {
     }
 };
 
-// Add Stop
-const addStop = (latlng) => {
+// Add Stop (Modified for Manual Entry support)
+const addStop = (latlng = null) => {
     if (isReordering) return;
 
     const id = Date.now();
-    // Logic: New stop is appended.
-    // If it's the first stop, implicit start.
-    // If it's the 2nd+, it becomes End, and the previous End becomes a regular Stop.
+    let name = null;
+    let travelMethod = 'car';
+    const nights = 1;
+    let marker = null;
 
-    // Initial Default Name
-    let name = null; // Use null to allow dynamic numbering
-    let travelMethod = 'car'; // Default
-    const nights = 1; // Default
-
-    // Default transit logic based on duration
-    if (stops.length > 0) {
-        const last = stops[stops.length - 1];
-        const dist = last.latlng.distanceTo(latlng);
-        // Estimate driving time
-        const { hours } = calculateTime(dist, 'car');
-
-        if (hours < 2) {
-            travelMethod = 'car';
-        } else if (hours <= 6) {
-            travelMethod = 'train';
-        } else {
-            travelMethod = 'plane';
+    if (latlng) {
+        // Normal Map Click Logic
+        if (stops.length > 0) {
+            const last = stops.filter(s => s.latlng)[stops.length - 1]; // Find last valid stop
+            if (last && last.latlng) {
+                const dist = last.latlng.distanceTo(latlng);
+                const { hours } = calculateTime(dist, 'car');
+                if (hours < 2) travelMethod = 'car';
+                else if (hours <= 6) travelMethod = 'train';
+                else travelMethod = 'plane';
+            }
         }
+
+        marker = L.marker(latlng, { draggable: true }).addTo(map);
+
+        marker.bindTooltip('', {
+            direction: 'top',
+            offset: [0, -10],
+            opacity: 0.95,
+            className: 'custom-tooltip'
+        });
     }
 
-
-    // Enable dragging
-    const marker = L.marker(latlng, { draggable: true }).addTo(map);
-
-    // Bind Tooltip for Hover
-    marker.bindTooltip('', {
-        direction: 'top',
-        offset: [0, -10],
-        opacity: 0.95,
-        className: 'custom-tooltip'
-    });
-
-    const newStop = { id, latlng, marker, name, travelMethod, nights, type: 'stop' }; // type placeholders
+    // If manual entry (no latlng), we initialize minimal object.
+    const newStop = { id, latlng, marker, name, travelMethod, nights, type: 'stop' };
     stops.push(newStop);
 
-    // Auto-populate name via Reverse Geocoding
-    reverseGeocode(latlng.lat, latlng.lng).then(foundName => {
-        if (foundName) {
-            // Only update if user hasn't set it yet
-            const s = stops.find(x => x.id === id);
-            if (s && !s.name) {
-                const input = document.querySelector(`.stop-name-input[data-id="${id}"]`);
-                // If user is typing (focused), do not disturb
-                if (input && document.activeElement === input) return;
+    if (latlng && marker) {
+        // Drag Event for Marker
+        marker.on('dragend', (e) => {
+            const newPos = e.target.getLatLng();
+            newStop.latlng = newPos;
 
-                s.name = foundName;
-                updateMarkerInfo(s, stops.indexOf(s), s.type);
-                // Try to update input if visible
-                if (input) input.value = foundName;
-            }
-        }
-    });
+            reverseGeocode(newPos.lat, newPos.lng).then(foundName => {
+                if (foundName) {
+                    const input = document.querySelector(`.stop-name-input[data-id="${id}"]`);
+                    if (input && document.activeElement === input) return;
 
-    // Drag Event
-    marker.on('dragend', (e) => {
-        const newPos = e.target.getLatLng();
-
-        newStop.latlng = newPos;
-
-        // Reverse Geocode on drag end
-        reverseGeocode(newPos.lat, newPos.lng).then(foundName => {
-            if (foundName) {
-                const input = document.querySelector(`.stop-name-input[data-id="${id}"]`);
-                // If user is typing (focused), do not disturb
-                if (input && document.activeElement === input) return;
-
-                newStop.name = foundName;
-                updateMarkerInfo(newStop, stops.indexOf(newStop), newStop.type);
-                // Try to update input if visible
-                if (input) input.value = foundName;
-            } else if (newStop.latlng.distanceTo(newPos) > 2000) {
-                // Fallback reset if moved far and no name found? 
-                // Actually relying on result is better.
-                newStop.name = null;
-            }
+                    newStop.name = foundName;
+                    updateMarkerInfo(newStop, stops.indexOf(newStop), newStop.type);
+                    if (input) input.value = foundName;
+                }
+                updateUI();
+            });
             updateUI();
         });
 
-        updateUI();
-    });
+        // Reverse Geocode Initial
+        reverseGeocode(latlng.lat, latlng.lng).then(foundName => {
+            if (foundName) {
+                const s = stops.find(x => x.id === id);
+                if (s && !s.name) {
+                    const input = document.querySelector(`.stop-name-input[data-id="${id}"]`);
+                    if (input && document.activeElement === input) return;
+
+                    s.name = foundName;
+                    updateMarkerInfo(s, stops.indexOf(s), s.type);
+                    if (input) input.value = foundName;
+                }
+            }
+        });
+    }
 
     updateUI();
+
+    // Auto-focus the input if it was a button add
+    if (!latlng) {
+        setTimeout(() => {
+            const input = document.querySelector(`.stop-name-input[data-id="${id}"]`);
+            if (input) input.focus();
+        }, 50);
+    }
+};
+
+window.addStopFromButton = () => {
+    addStop(null);
 };
 
 // Helper: Update Marker Tooltip
@@ -663,7 +734,9 @@ const updateMarkerInfo = (s, idx, type) => {
 window.removeStop = (id) => {
     const index = stops.findIndex(s => s.id === id);
     if (index !== -1) {
-        map.removeLayer(stops[index].marker);
+        if (stops[index].marker) {
+            map.removeLayer(stops[index].marker);
+        }
         stops.splice(index, 1);
         updateUI();
     }
@@ -864,7 +937,9 @@ if (undoBtn) {
         if (isReordering) return;
         if (stops.length > 0) {
             const lastStop = stops.pop();
-            map.removeLayer(lastStop.marker);
+            if (lastStop.marker) {
+                map.removeLayer(lastStop.marker);
+            }
             updateUI();
         }
     });
@@ -876,7 +951,9 @@ map.on('click', (e) => {
 });
 
 resetBtn.addEventListener('click', () => {
-    stops.forEach(s => map.removeLayer(s.marker));
+    stops.forEach(s => {
+        if (s.marker) map.removeLayer(s.marker);
+    });
     stops = [];
     isReordering = false; // Reset mode
     if (sortable) sortable.destroy();

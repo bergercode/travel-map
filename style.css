@@ -905,3 +905,33 @@ body {
         /* Hide top-right toggle on mobile, use sidebar one */
     }
 }
+
+/* Add Stop Button (Plus) */
+.add-stop-item {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0;
+    animation: fadeScale 0.3s ease-out forwards;
+}
+
+.btn-add-stop {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px dashed rgba(255, 255, 255, 0.3);
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-add-stop:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--secondary-color);
+    color: var(--secondary-color);
+    transform: scale(1.1);
+}
