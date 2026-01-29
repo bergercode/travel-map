@@ -679,7 +679,7 @@ body {
     }
 
     /* Hide Controls when Sidebar is Open */
-    .sidebar.active ~ .floating-controls {
+    .sidebar.active~.floating-controls {
         display: none;
     }
 
@@ -865,4 +865,43 @@ body {
     min-width: 20px;
     text-align: center;
     display: inline-block;
+}
+
+/* Map Theme Toggle (Desktop) */
+.map-theme-toggle {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+
+.theme-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--bg-glass);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border-glass);
+    color: var(--text-color);
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-soft);
+}
+
+.theme-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .map-theme-toggle {
+        display: none;
+        /* Hide top-right toggle on mobile, use sidebar one */
+    }
 }
