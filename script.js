@@ -1100,6 +1100,7 @@ resetBtn.addEventListener('click', () => {
     reorderBtn.classList.add('btn-secondary');
     stopsListEl.classList.remove('reordering');
 
+    localStorage.removeItem('travel_map_state');
     updateUI();
 });
 
