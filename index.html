@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wanderlust - Travel Map</title>
+    <title>TravelPlot.app</title>
 
     <!-- Google Fonts: Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,9 +29,10 @@
             <div class="sidebar-header">
                 <div class="logo">
                     <i class="fa-solid fa-earth-americas"></i>
-                    <h1>Wanderlust</h1>
+                    <h1>TravelPlot.app</h1>
                 </div>
-                <p class="subtitle">Plan your journey</p>
+                <input type="text" id="journey-name" class="journey-name-input" value="My Journey"
+                    placeholder="Name your trip..." title="Rename your journey">
             </div>
 
             <div class="journey-stats">
@@ -66,18 +67,29 @@
                 </ul>
             </div>
 
-            <div class="sidebar-footer" style="display: flex; gap: 8px;">
-                <button id="reset-btn" class="btn btn-secondary" style="flex: 1;">
-                    <i class="fa-solid fa-rotate-right"></i> Reset
-                </button>
-                <button id="theme-toggle-mobile" class="btn btn-secondary" style="flex: 0 0 auto; width: 44px;"
-                    title="Toggle Map Theme">
-                    <i class="fa-solid fa-moon"></i>
-                </button>
-                <button id="reorder-btn-mobile" class="btn btn-secondary mobile-reorder-btn"
-                    style="flex: 1; display: none;" title="Reorder Stops">
-                    <i class="fa-solid fa-sort"></i> Reorder
-                </button>
+            <div class="sidebar-footer" style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; gap: 8px;">
+                    <button id="save-btn" class="btn btn-secondary" style="flex: 1;" title="Save Journey to File">
+                        <i class="fa-solid fa-file-export"></i> Save
+                    </button>
+                    <button id="load-btn" class="btn btn-secondary" style="flex: 1;" title="Load Journey from File">
+                        <i class="fa-solid fa-file-import"></i> Load
+                    </button>
+                    <input type="file" id="file-input" accept=".txt" style="display: none;">
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button id="reset-btn" class="btn btn-secondary" style="flex: 1;">
+                        <i class="fa-solid fa-rotate-right"></i> Reset
+                    </button>
+                    <button id="theme-toggle-mobile" class="btn btn-secondary" style="flex: 0 0 auto; width: 44px;"
+                        title="Toggle Map Theme">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                    <button id="reorder-btn-mobile" class="btn btn-secondary mobile-reorder-btn"
+                        style="flex: 1; display: none;" title="Reorder Stops">
+                        <i class="fa-solid fa-sort"></i> Reorder
+                    </button>
+                </div>
             </div>
         </aside>
 

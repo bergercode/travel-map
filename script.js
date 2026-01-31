@@ -234,6 +234,36 @@ const getMethodColor = (method) => {
     }
 };
 
+window.autoUpdateTravelMethods = (stop) => {
+    const index = stops.indexOf(stop);
+
+    // 1. Update THIS stop's method (based on Prev)
+    if (index > 0) {
+        const prev = stops[index - 1];
+        if (prev && prev.latlng && stop.latlng) {
+            const dist = prev.latlng.distanceTo(stop.latlng);
+            const { hours } = calculateTime(dist, 'car');
+
+            if (hours < 2) stop.travelMethod = 'car';
+            else if (hours <= 6) stop.travelMethod = 'train';
+            else stop.travelMethod = 'plane';
+        }
+    }
+
+    // 2. Update NEXT stop's method (based on This)
+    if (index < stops.length - 1) {
+        const next = stops[index + 1];
+        if (next && next.latlng && stop.latlng) {
+            const dist = stop.latlng.distanceTo(next.latlng);
+            const { hours } = calculateTime(dist, 'car');
+
+            if (hours < 2) next.travelMethod = 'car';
+            else if (hours <= 6) next.travelMethod = 'train';
+            else next.travelMethod = 'plane';
+        }
+    }
+};
+
 window.updateStopLocationAndName = (id, lat, lng, name) => {
     const stop = stops.find(s => s.id === id);
     if (stop) {
@@ -255,6 +285,7 @@ window.updateStopLocationAndName = (id, lat, lng, name) => {
             stop.marker.on('dragend', (e) => {
                 const newPos = e.target.getLatLng();
                 stop.latlng = newPos;
+                autoUpdateTravelMethods(stop);
 
                 // Reverse Geocode
                 reverseGeocode(newPos.lat, newPos.lng).then(foundName => {
@@ -274,24 +305,7 @@ window.updateStopLocationAndName = (id, lat, lng, name) => {
             stop.marker.setLatLng(newLatLng);
         }
 
-        // Auto-select travel method if not already set by user (or if currently default 'car')
-        // Logic: Compare with previous stop
-        const index = stops.indexOf(stop);
-        if (index > 0) {
-            const prev = stops[index - 1];
-            if (prev && prev.latlng) {
-                const dist = prev.latlng.distanceTo(newLatLng);
-                const { hours } = calculateTime(dist, 'car');
-
-                // Only override if it seems to be default 'car' or we want to force update on location change?
-                // Users might have manually set it, so maybe only update if it matches the *previous* default?
-                // Or just update it always on location change because location change invalidates the method choice usually?
-                // Let's update it.
-                if (hours < 2) stop.travelMethod = 'car';
-                else if (hours <= 6) stop.travelMethod = 'train';
-                else stop.travelMethod = 'plane';
-            }
-        }
+        autoUpdateTravelMethods(stop);
 
         stop.name = name;
         updateUI();
@@ -442,24 +456,19 @@ const updateUI = () => {
         // Render Transit (Leg) Component if not first
         if (index > 0) {
             const prev = stops[index - 1];
+            const method = stop.travelMethod || 'car';
+            let dist = 0;
+            let timeStr = '---';
+            let distStr = '---';
 
             // Only calc distance if both exist
             if (prev.latlng && stop.latlng) {
-                // Default method is car if not set
-                const method = stop.travelMethod || 'car';
-
-                let dist = 0;
-
                 // Calculate distance based on method and stopovers
                 if (method === 'plane' && stop.flightStopovers && stop.flightStopovers.length > 0) {
                     // Multi-leg distance calculation
                     let previousPoint = prev.latlng;
-
-                    // Slice to active stops only
                     const activeStops = stop.flightStopovers.slice(0, stop.flightStops || 0);
 
-                    // 1. Start -> First Stopover
-                    // 2. Stopover -> Next Stopover
                     activeStops.forEach(s => {
                         if (s.latlng) {
                             dist += previousPoint.distanceTo(s.latlng);
@@ -467,10 +476,8 @@ const updateUI = () => {
                         }
                     });
 
-                    // 3. Last Stopover -> Destination
+                    // Last Stopover -> Destination
                     if (stop.latlng) {
-                        dist += previousPoint.distanceTo(stop.latlng);
-                    } else {
                         dist += previousPoint.distanceTo(stop.latlng);
                     }
                 } else {
@@ -479,6 +486,7 @@ const updateUI = () => {
                 }
 
                 totalDist += dist;
+                distStr = formatDistance(dist);
 
                 const timeData = calculateTime(dist, method);
 
@@ -498,114 +506,107 @@ const updateUI = () => {
                         const h = Math.floor(timeData.totalMinutes / 60);
                         const m = timeData.totalMinutes % 60;
                         timeData.display = `${h} h ${m} min`;
-                        if (layoverTotal > 0) {
-                            // Optional: indicate layover included? The user request implies just updating the time.
-                            // "Make layover time add to transit card time and total time"
-                            // We might want to append " (incl. layover)"? 
-                            // User said: "Although the later is only shown in days so might not look like it's updated"
-                            // implying they just want the numbers to be correct.
-                        }
                     }
                 }
 
-                const timeStr = timeData.display;
+                timeStr = timeData.display;
                 totalTravelHours += timeData.hours;
-
-                // Create SEPARATE list item for transit
-                const transitLi = document.createElement('li');
-                transitLi.className = 'transit-item';
-                transitLi.innerHTML = `
-                    <div class="transit-container separate-transit">
-                        <div class="transit-header">
-                            <span>
-                                <i class="fa-solid fa-${method === 'walk' ? 'person-walking' : method}" style="margin-right: 6px; color: var(--secondary-color);"></i>
-                                ${method.charAt(0).toUpperCase() + method.slice(1)}
-                                <span style="opacity: 0.5; margin-left: 8px; font-weight: 400;">${formatDistance(dist)}</span>
-                            </span>
-                            <span class="transit-time">${timeStr}</span>
-                        </div>
-                        <div class="transit-options">
-                            <button class="transit-option-btn btn-car ${method === 'car' ? 'active' : ''}" 
-                                    onclick="setTravelMethod(${stop.id}, 'car')" title="Car">
-                                <i class="fa-solid fa-car"></i>
-                            </button>
-                            <button class="transit-option-btn btn-bus ${method === 'bus' ? 'active' : ''}" 
-                                    onclick="setTravelMethod(${stop.id}, 'bus')" title="Bus">
-                                <i class="fa-solid fa-bus"></i>
-                            </button>
-                            <button class="transit-option-btn btn-train ${method === 'train' ? 'active' : ''}" 
-                                    onclick="setTravelMethod(${stop.id}, 'train')" title="Train">
-                                <i class="fa-solid fa-train"></i>
-                            </button>
-                            <button class="transit-option-btn btn-walk ${method === 'walk' ? 'active' : ''}" 
-                                    onclick="setTravelMethod(${stop.id}, 'walk')" title="Walk">
-                                <i class="fa-solid fa-person-walking"></i>
-                            </button>
-                            <button class="transit-option-btn btn-plane ${method === 'plane' ? 'active' : ''}" 
-                                    onclick="setTravelMethod(${stop.id}, 'plane')" title="Flight">
-                                <i class="fa-solid fa-plane"></i>
-                            </button>
-                        </div>
-                        ${method === 'plane' ? `
-                        <div class="flight-details" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1);">
-                           <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-                                <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Stops</span>
-                                <input type="number" min="0" value="${stop.flightStops !== undefined ? stop.flightStops : 0}" 
-                                       style="width: 40px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 2px 4px; text-align: center;"
-                                       onchange="updateFlightStops(${stop.id}, this.value)">
-                                <div class="night-adjust-btns" style="margin-left: 2px;">
-                                   <button class="night-btn btn-plus" onclick="adjustFlightStops(${stop.id}, 1)">+</button>
-                                   <button class="night-btn btn-minus" onclick="adjustFlightStops(${stop.id}, -1)">-</button>
-                                </div>
-                                ${(stop.flightStops !== undefined && stop.flightStops > 0) ? `
-                                <button class="btn-toggle-stops" onclick="toggleFlightStops(${stop.id})" style="margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;">
-                                    <i class="fa-solid fa-chevron-${stop.isFlightStopsCollapsed ? 'down' : 'up'}"></i>
-                                </button>
-                                ` : ''}
-                           </div>
-                           ${(stop.flightStops === undefined || stop.flightStops > 0) && !stop.isFlightStopsCollapsed ? `
-                           <div class="stopovers-list-container">
-                               ${(function () {
-                                const count = stop.flightStops !== undefined ? stop.flightStops : 0;
-                                let html = '';
-                                for (let i = 0; i < count; i++) {
-                                    const val = (stop.flightStopovers && stop.flightStopovers[i]) ? stop.flightStopovers[i].name : (i === 0 && stop.flightStopName ? stop.flightStopName : '');
-                                    const layover = (stop.flightStopovers && stop.flightStopovers[i]) ? (stop.flightStopovers[i].layover || 0) : 0;
-
-                                    html += `
-                                       <div class="stopover-input-container" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dotted rgba(255,255,255,0.1);">
-                                           <div style="margin-bottom: 4px;">
-                                               <input type="text" placeholder="Stopover ${i + 1} City"
-                                                      class="stopover-name-input"
-                                                      data-id="${stop.id}"
-                                                      data-index="${i}"
-                                                      value="${val || ''}"
-                                                      style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-family: inherit;"
-                                                      onchange="updateFlightStopover(${stop.id}, ${i}, this.value)"
-                                                      autocomplete="off">
-                                               <div class="suggestions-dropdown" id="dropdown-stopover-${stop.id}-${i}" style="top: 100%; left: 0; right: 0;"></div>
-                                           </div>
-                                           <div style="display: flex; gap: 8px; align-items: center; padding-left: 4px; font-size: 11px; color: var(--text-muted); text-transform: uppercase;">
-                                               LAYOVER
-                                               <input type="number" min="0" step="0.5" value="${layover}" 
-                                                      id="layover-input-${stop.id}-${i}"
-                                                      placeholder="0"
-                                                      style="width: 50px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 3px; padding: 2px 4px; text-align: center; font-size: 11px; font-family: inherit;"
-                                                      onchange="updateFlightStopoverLayover(${stop.id}, ${i}, this.value)">
-                                               HOURS
-                                           </div>
-                                       </div>`;
-                                }
-                                return html;
-                            })()}
-                           </div>
-                           ` : ''}
-                       </div>
-                        ` : ''}
-                    </div>
-                `;
-                stopsListEl.appendChild(transitLi);
             }
+
+            // Create SEPARATE list item for transit
+            const transitLi = document.createElement('li');
+            transitLi.className = 'transit-item';
+            transitLi.innerHTML = `
+                <div class="transit-container separate-transit">
+                    <div class="transit-header">
+                        <span>
+                            <i class="fa-solid fa-${method === 'walk' ? 'person-walking' : method}" style="margin-right: 6px; color: var(--secondary-color);"></i>
+                            ${method.charAt(0).toUpperCase() + method.slice(1)}
+                            <span style="opacity: 0.5; margin-left: 8px; font-weight: 400;">${distStr}</span>
+                        </span>
+                        <span class="transit-time">${timeStr}</span>
+                    </div>
+                    <div class="transit-options">
+                        <button class="transit-option-btn btn-car ${method === 'car' ? 'active' : ''}" 
+                                onclick="setTravelMethod(${stop.id}, 'car')" title="Car">
+                            <i class="fa-solid fa-car"></i>
+                        </button>
+                        <button class="transit-option-btn btn-bus ${method === 'bus' ? 'active' : ''}" 
+                                onclick="setTravelMethod(${stop.id}, 'bus')" title="Bus">
+                            <i class="fa-solid fa-bus"></i>
+                        </button>
+                        <button class="transit-option-btn btn-train ${method === 'train' ? 'active' : ''}" 
+                                onclick="setTravelMethod(${stop.id}, 'train')" title="Train">
+                            <i class="fa-solid fa-train"></i>
+                        </button>
+                        <button class="transit-option-btn btn-walk ${method === 'walk' ? 'active' : ''}" 
+                                onclick="setTravelMethod(${stop.id}, 'walk')" title="Walk">
+                            <i class="fa-solid fa-person-walking"></i>
+                        </button>
+                        <button class="transit-option-btn btn-plane ${method === 'plane' ? 'active' : ''}" 
+                                onclick="setTravelMethod(${stop.id}, 'plane')" title="Flight">
+                            <i class="fa-solid fa-plane"></i>
+                        </button>
+                    </div>
+                    ${method === 'plane' ? `
+                    <div class="flight-details" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                       <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Stops</span>
+                            <input type="number" min="0" value="${stop.flightStops !== undefined ? stop.flightStops : 0}" 
+                                   style="width: 40px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 2px 4px; text-align: center;"
+                                   onchange="updateFlightStops(${stop.id}, this.value)">
+                            <div class="night-adjust-btns" style="margin-left: 2px;">
+                               <button class="night-btn btn-plus" onclick="adjustFlightStops(${stop.id}, 1)">+</button>
+                               <button class="night-btn btn-minus" onclick="adjustFlightStops(${stop.id}, -1)">-</button>
+                            </div>
+                            ${(stop.flightStops !== undefined && stop.flightStops > 0) ? `
+                            <button class="btn-toggle-stops" onclick="toggleFlightStops(${stop.id})" style="margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;">
+                                <i class="fa-solid fa-chevron-${stop.isFlightStopsCollapsed ? 'down' : 'up'}"></i>
+                            </button>
+                            ` : ''}
+                       </div>
+                       ${(stop.flightStops === undefined || stop.flightStops > 0) && !stop.isFlightStopsCollapsed ? `
+                       <div class="stopovers-list-container">
+                           ${(function () {
+                            const count = stop.flightStops !== undefined ? stop.flightStops : 0;
+                            let html = '';
+                            for (let i = 0; i < count; i++) {
+                                const val = (stop.flightStopovers && stop.flightStopovers[i]) ? stop.flightStopovers[i].name : (i === 0 && stop.flightStopName ? stop.flightStopName : '');
+                                const layover = (stop.flightStopovers && stop.flightStopovers[i]) ? (stop.flightStopovers[i].layover || 0) : 0;
+
+                                html += `
+                                   <div class="stopover-input-container" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dotted rgba(255,255,255,0.1);">
+                                       <div style="margin-bottom: 4px;">
+                                           <input type="text" placeholder="Stopover ${i + 1} City"
+                                                  class="stopover-name-input"
+                                                  data-id="${stop.id}"
+                                                  data-index="${i}"
+                                                  value="${val || ''}"
+                                                  style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-family: inherit;"
+                                                  onchange="updateFlightStopover(${stop.id}, ${i}, this.value)"
+                                                  autocomplete="off">
+                                           <div class="suggestions-dropdown" id="dropdown-stopover-${stop.id}-${i}" style="top: 100%; left: 0; right: 0;"></div>
+                                       </div>
+                                       <div style="display: flex; gap: 8px; align-items: center; padding-left: 4px; font-size: 11px; color: var(--text-muted); text-transform: uppercase;">
+                                           LAYOVER
+                                           <input type="number" min="0" step="0.5" value="${layover}" 
+                                                  id="layover-input-${stop.id}-${i}"
+                                                  placeholder="0"
+                                                  style="width: 50px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 3px; padding: 2px 4px; text-align: center; font-size: 11px; font-family: inherit;"
+                                                  onchange="updateFlightStopoverLayover(${stop.id}, ${i}, this.value)">
+                                           HOURS
+                                       </div>
+                                   </div>`;
+                            }
+                            return html;
+                        })()}
+                       </div>
+                       ` : ''}
+                   </div>
+                    ` : ''}
+                </div>
+            `;
+            stopsListEl.appendChild(transitLi);
         }
 
         const li = document.createElement('li');
@@ -660,8 +661,6 @@ const updateUI = () => {
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </div>
-            
-
         `;
         stopsListEl.appendChild(li);
 
@@ -716,6 +715,8 @@ const updateUI = () => {
     } else {
         totalDaysEl.innerText = grandTotal;
     }
+
+    saveState();
 };
 
 // Add Stop (Modified for Manual Entry support)
@@ -760,6 +761,7 @@ const addStop = (latlng = null) => {
         marker.on('dragend', (e) => {
             const newPos = e.target.getLatLng();
             newStop.latlng = newPos;
+            autoUpdateTravelMethods(newStop);
 
             reverseGeocode(newPos.lat, newPos.lng).then(foundName => {
                 if (foundName) {
@@ -848,6 +850,7 @@ window.updateStopName = (id, newName) => {
         else if (idx === stops.length - 1 && stops.length > 1) type = 'end';
 
         updateMarkerInfo(stop, idx, type);
+        saveState();
     }
 };
 
@@ -1513,6 +1516,8 @@ window.toggleMapTheme = () => {
     if (mobileIcon) {
         mobileIcon.className = `fa-solid ${iconClass}`;
     }
+
+    saveState();
 };
 
 const desktopToggleBtn = document.getElementById('theme-toggle-btn');
@@ -1525,3 +1530,242 @@ if (desktopToggleBtn) {
 if (mobileToggleBtn) {
     mobileToggleBtn.addEventListener('click', toggleMapTheme);
 }
+
+// State Persistence Helpers
+const escapeHtml = (unsafe) => {
+    if (typeof unsafe !== 'string') return unsafe;
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+};
+
+const serializeState = () => {
+    const serializedStops = stops.map(s => {
+        return {
+            id: s.id,
+            name: s.name,
+            travelMethod: s.travelMethod,
+            nights: s.nights,
+            type: s.type,
+            flightStops: s.flightStops,
+            isFlightStopsCollapsed: s.isFlightStopsCollapsed,
+            latlng: s.latlng ? { lat: s.latlng.lat, lng: s.latlng.lng } : null,
+            flightStopovers: s.flightStopovers ? s.flightStopovers.map(fs => ({
+                name: fs.name,
+                layover: fs.layover,
+                latlng: fs.latlng ? { lat: fs.latlng.lat, lng: fs.latlng.lng } : null
+            })) : [],
+            flightStopName: s.flightStopName,
+            flightStopLatLng: s.flightStopLatLng ? { lat: s.flightStopLatLng.lat, lng: s.flightStopLatLng.lng } : null
+        };
+    });
+
+    const journeyName = document.getElementById('journey-name') ? document.getElementById('journey-name').value : 'My Journey';
+    return { stops: serializedStops, isDarkMode: isDarkMode, journeyName: journeyName };
+};
+
+const restoreState = (state) => {
+    // Restore Theme
+    if (typeof state.isDarkMode === 'boolean') {
+        if (state.isDarkMode !== isDarkMode) {
+            isDarkMode = state.isDarkMode;
+            if (isDarkMode) { map.removeLayer(lightMode); darkMode.addTo(map); }
+            else { map.removeLayer(darkMode); lightMode.addTo(map); }
+            const iconClass = isDarkMode ? 'fa-moon' : 'fa-sun';
+            const desktopIcon = document.querySelector('#theme-toggle-btn i');
+            const mobileIcon = document.querySelector('#theme-toggle-mobile i');
+            if (desktopIcon) desktopIcon.className = `fa-solid ${iconClass}`;
+            if (mobileIcon) mobileIcon.className = `fa-solid ${iconClass}`;
+        }
+    }
+
+    // Restore Journey Name
+    if (state.journeyName) {
+        const nameInput = document.getElementById('journey-name');
+        if (nameInput) nameInput.value = escapeHtml(state.journeyName);
+    }
+
+    // Restore Stops
+    if (state.stops && Array.isArray(state.stops)) {
+        stops.forEach(s => { if (s.marker) map.removeLayer(s.marker); });
+        stops = [];
+
+        state.stops.forEach(s => {
+            const stop = {
+                ...s,
+                name: escapeHtml(s.name),
+                latlng: s.latlng ? new L.LatLng(s.latlng.lat, s.latlng.lng) : null,
+                flightStopovers: (s.flightStopovers || []).map(fs => ({
+                    ...fs,
+                    name: escapeHtml(fs.name),
+                    latlng: fs.latlng ? new L.LatLng(fs.latlng.lat, fs.latlng.lng) : null
+                })),
+                flightStopLatLng: s.flightStopLatLng ? new L.LatLng(s.flightStopLatLng.lat, s.flightStopLatLng.lng) : null
+            };
+
+            if (stop.latlng) {
+                stop.marker = L.marker(stop.latlng, { draggable: true }).addTo(map);
+                stop.marker.bindTooltip('', {
+                    direction: 'top', offset: [0, -10], opacity: 0.95, className: 'custom-tooltip'
+                });
+
+                stop.marker.on('dragend', (e) => {
+                    const newPos = e.target.getLatLng();
+                    stop.latlng = newPos;
+                    autoUpdateTravelMethods(stop);
+                    reverseGeocode(newPos.lat, newPos.lng).then(foundName => {
+                        if (foundName) {
+                            const input = document.querySelector(`.stop-name-input[data-id="${stop.id}"]`);
+                            if (input && document.activeElement === input) return;
+                            stop.name = foundName;
+                            updateMarkerInfo(stop, stops.indexOf(stop), stop.type);
+                            if (input) input.value = foundName;
+                        }
+                        updateUI();
+                    });
+                    updateUI();
+                });
+            }
+            stops.push(stop);
+        });
+        updateUI();
+        if (stops.filter(s => s.latlng).length > 0) {
+            const group = new L.featureGroup(stops.filter(s => s.marker).map(s => s.marker));
+            if (group.getLayers().length > 0) map.fitBounds(group.getBounds().pad(0.2));
+        }
+    }
+};
+
+// State Persistence
+const saveState = debounce(() => {
+    try {
+        localStorage.setItem('travel_map_state', JSON.stringify(serializeState()));
+    } catch (e) {
+        console.error('Failed to save state', e);
+    }
+}, 1000);
+
+const loadState = () => {
+    try {
+        const raw = localStorage.getItem('travel_map_state');
+        if (raw) restoreState(JSON.parse(raw));
+    } catch (e) {
+        console.error('Failed to load state', e);
+    }
+};
+
+// File Import/Export
+const saveBtn = document.getElementById('save-btn');
+const loadBtn = document.getElementById('load-btn');
+const fileInput = document.getElementById('file-input');
+
+if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+        // Get user-defined journey name
+        const nameInput = document.getElementById('journey-name');
+        const journeyName = nameInput ? nameInput.value.trim() : 'Wanderlust Journey';
+        const safeFilename = journeyName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'travel_plot_trip';
+
+        let content = `${journeyName} Itinerary\n${'='.repeat(journeyName.length + 10)}\n\n`;
+        content += `Total Stops: ${stops.length}\n`;
+        content += `Total Distance: ${totalDistanceEl.innerText}\n`;
+        content += `Total Duration: ${totalDaysEl.innerText} days\n\nItinerary:\n`;
+
+        stops.forEach((stop, index) => {
+            const name = stop.name || `Stop #${index + 1}`;
+            content += `${index + 1}. ${name}`;
+            if (stop.nights > 0) content += ` (${stop.nights} nights)`;
+            content += '\n';
+
+            if (index < stops.length - 1) {
+                const next = stops[index + 1];
+                if (stop.latlng && next.latlng) {
+                    const method = next.travelMethod || 'car';
+                    let dist = 0;
+                    const isComplexPlane = method === 'plane' && next.flightStopovers && next.flightStopovers.length > 0;
+
+                    if (isComplexPlane) {
+                        let prevPt = stop.latlng;
+                        const activeStops = next.flightStopovers.slice(0, next.flightStops || 0);
+                        activeStops.forEach(s => {
+                            if (s.latlng) { dist += prevPt.distanceTo(s.latlng); prevPt = s.latlng; }
+                        });
+                        dist += prevPt.distanceTo(next.latlng);
+
+                        content += `   ↓ Flight via:\n`;
+                        activeStops.forEach((s, i) => {
+                            content += `       - Stopover ${i + 1}: ${s.name} (${s.layover || 0}h layover)\n`;
+                        });
+                    } else {
+                        dist = stop.latlng.distanceTo(next.latlng);
+                    }
+
+                    const { display } = calculateTime(dist, method);
+                    if (!isComplexPlane) {
+                        content += `   ↓ ${method.charAt(0).toUpperCase() + method.slice(1)}: ${display} (${formatDistance(dist)})\n`;
+                    } else {
+                        content += `     Total Flight: ${display} (${formatDistance(dist)})\n`;
+                    }
+                }
+            }
+        });
+
+        content += `\n\n--- TRIP DATA (DO NOT EDIT) ---\n` + JSON.stringify(serializeState());
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${safeFilename}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+}
+
+if (loadBtn && fileInput) {
+    loadBtn.addEventListener('click', () => { fileInput.click(); });
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => { importTrip(event.target.result); fileInput.value = ''; };
+        reader.readAsText(file);
+    });
+}
+
+const importTrip = (text) => {
+    const delimiter = "--- TRIP DATA (DO NOT EDIT) ---";
+    const parts = text.split(delimiter);
+
+    // 1. Check for Delimiter
+    if (parts.length < 2) {
+        alert("Invalid file format: Missing trip data section.\nPlease ensure you are loading a valid .txt file generated by TravelPlot.");
+        return;
+    }
+
+    // 2. Check for Content Style (Header)
+    const header = parts[0].trim();
+    if (!header.includes("Itinerary")) {
+        // Soft warning or strict? User asked for validation on content style.
+        // Let's be strict but helpful.
+        console.warn("File header missing 'Itinerary' keyword.");
+    }
+
+    try {
+        const state = JSON.parse(parts[1].trim());
+
+        // 3. Validate JSON Schema
+        if (!state || !Array.isArray(state.stops) || typeof state.isDarkMode === 'undefined') {
+            throw new Error("Invalid state object structure");
+        }
+
+        restoreState(state);
+    } catch (e) {
+        alert("Error loading trip: The file data is corrupted or incompatible.\n" + e.message);
+        console.error(e);
+    }
+};
+
+loadState();
