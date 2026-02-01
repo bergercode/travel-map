@@ -9,6 +9,8 @@ const stopsListEl = document.getElementById('stops-list');
 const totalStopsEl = document.getElementById('total-stops');
 const totalDistanceEl = document.getElementById('total-distance');
 const totalDaysEl = document.getElementById('total-days'); // New
+const totalTravelTimeEl = document.getElementById('total-travel-time');
+const travelTimePercentEl = document.getElementById('travel-time-percent');
 const resetBtn = document.getElementById('reset-btn');
 const reorderBtn = document.getElementById('reorder-btn'); // Floating (Desktop)
 const reorderBtnMobile = document.getElementById('reorder-btn-mobile'); // Sidebar (Mobile)
@@ -685,7 +687,7 @@ const updateUI = () => {
 
     stopsListEl.scrollTop = stopsListEl.scrollHeight;
     totalStopsEl.innerText = stops.length;
-    totalDistanceEl.innerText = formatDistance(totalDist);
+    totalDistanceEl.innerText = Math.ceil(totalDist / 1000) + ' km';
 
     // Total Days Calculation: Nights + (Travel Hours / 24 rounded up)
     let travelDays = 0;
@@ -711,10 +713,21 @@ const updateUI = () => {
     // Formatting: if travelDays is small, it might not show up if we just round.
     // Let's show decimal if non-integer.
     if (!Number.isInteger(grandTotal)) {
-        totalDaysEl.innerText = grandTotal.toFixed(1);
+        totalDaysEl.innerText = grandTotal.toFixed(1) + ' d';
     } else {
-        totalDaysEl.innerText = grandTotal;
+        totalDaysEl.innerText = grandTotal + ' d';
     }
+
+    // Update Travel Time & Percentage
+    const tH = Math.floor(totalTravelHours);
+    const tM = Math.round((totalTravelHours - tH) * 60);
+    if (totalTravelTimeEl) totalTravelTimeEl.innerText = `${tH}h ${tM}m`;
+
+    let percent = 0;
+    if (grandTotal > 0) {
+        percent = (totalTravelHours / (grandTotal * 24)) * 100;
+    }
+    if (travelTimePercentEl) travelTimePercentEl.innerText = `(${Math.round(percent)}%)`;
 
     saveState();
 };
@@ -1026,25 +1039,31 @@ const toggleReorderMode = () => {
         // Create Sortable
         sortable = Sortable.create(stopsListEl, {
             animation: 150,
-            handle: '.stop-item', // Drag by whole item or handle?
-            // Actually let's use the handle
             handle: '.stop-item',
-            // The handle is .drag-handle but we can make whole item draggable if we want.
-            // Let's use the whole item for now, or just the handle?
-            // If I look at CSS: `.stops - list.reordering.stop - item` has `cursor: grab`.
-            // Let's try whole item.
+            draggable: '.stop-item', // Ensure only stops are draggable
             onEnd: (evt) => {
-                // Update array order
-                const item = stops.splice(evt.oldIndex, 1)[0];
-                stops.splice(evt.newIndex, 0, item);
+                // Robust Reorder: Map DOM IDs to Array
+                // This avoids issues with hidden transit items messing up indices
+                const newOrderIds = Array.from(stopsListEl.querySelectorAll('.stop-item')).map(el => parseInt(el.dataset.id));
 
-                // Update Types (Start/End)
-                // Actually updateUI handles types based on index, so just calling updateUI() is enough?
-                // Yes, but we need to update the model first. 
-                // Done above with splice.
+                const newStops = [];
+                newOrderIds.forEach(id => {
+                    const s = stops.find(x => x.id === id);
+                    if (s) newStops.push(s);
+                });
 
-                // Redraw
+                // Update Model
+                stops = newStops;
+
+                // Force Redraw (Bypass isReordering check momentarily)
+                const wasReordering = isReordering;
+                isReordering = false;
                 updateUI();
+                isReordering = wasReordering;
+
+                // Remove the "Add" button if it appeared (since we are still in reorder mode)
+                const plusBtn = stopsListEl.querySelector('.add-stop-item');
+                if (plusBtn) plusBtn.remove();
             }
         });
 
@@ -1241,6 +1260,7 @@ speedDownBtn.addEventListener('click', () => {
 let playbackMarker = null;
 let isPlaying = false;
 let isCameraLocked = true;
+let isZooming = false;
 
 const updateCenterBtnUI = () => {
     if (isCameraLocked) {
@@ -1266,6 +1286,9 @@ map.on('dragstart', () => {
         updateCenterBtnUI();
     }
 });
+
+map.on('zoomstart', () => { isZooming = true; });
+map.on('zoomend', () => { isZooming = false; });
 
 playBtn.addEventListener('click', async () => {
     if (isPlaying) {
@@ -1348,7 +1371,7 @@ playBtn.addEventListener('click', async () => {
         // Time Tracking
         // Start Day 1, 08:00
         let currentDay = 1;
-        let currentHour = 8.0;
+        let currentHour = 0.0;
 
         const updateTimeDisplay = () => {
             const d = Math.floor(currentDay);
@@ -1358,7 +1381,12 @@ playBtn.addEventListener('click', async () => {
             const hStr = h.toString().padStart(2, '0');
             const mStr = m.toString().padStart(2, '0');
 
-            playbackTimeDisplay.innerHTML = `Day ${d} <span style="opacity: 0.7;">${hStr}:${mStr}</span>`;
+            playbackTimeDisplay.innerHTML = `
+                <div style="display: grid; grid-template-columns: 60px 10px 60px; text-align: center; width: 100%;">
+                    <div style="text-align: right;">Day ${d}</div>
+                    <div style="opacity: 0.3;">|</div>
+                    <div style="text-align: left; opacity: 0.7; font-feature-settings: 'tnum'; font-variant-numeric: tabular-nums;">${hStr}:${mStr}</div>
+                </div>`;
         };
 
         updateTimeDisplay();
@@ -1451,7 +1479,7 @@ playBtn.addEventListener('click', async () => {
                     if (lat && lng) {
                         const newPos = [lat, lng];
                         playbackMarker.setLatLng(newPos);
-                        if (isCameraLocked) {
+                        if (isCameraLocked && !isZooming) {
                             map.panTo(newPos, { animate: false });
                         }
                     }
@@ -1466,15 +1494,41 @@ playBtn.addEventListener('click', async () => {
             });
 
             // End of Segment: Process Nights
+            // End of Segment: Process Nights
             if (segment.nightsAfter > 0) {
-                // Add nights to time
-                currentDay += segment.nightsAfter;
-                // Update time to morning (e.g., check out time 10:00 or stay same)
-                // Just add full 24h days for simplicity
-                updateTimeDisplay();
+                const stayIcons = ['fa-bed', 'fa-utensils', 'fa-martini-glass'];
 
-                // Brief pause to show we stopped?
-                await new Promise(r => setTimeout(r, 500));
+                for (let n = 0; n < segment.nightsAfter; n++) {
+                    if (!isPlaying) break;
+
+                    const speedMult = speeds[currentSpeedIdx];
+                    const stepDuration = 1000 / speedMult; // 1 sec per day adjusted by speed
+
+                    // Update Icon with Bounce
+                    const iconName = stayIcons[n % 3];
+                    const stayIcon = L.divIcon({
+                        className: 'travel-token',
+                        html: `<div class="token-inner" style="background: #ffffff; color: #000;"><i class="fa-solid ${iconName} fa-bounce"></i></div>`,
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 16]
+                    });
+                    playbackMarker.setIcon(stayIcon);
+
+                    await new Promise(r => setTimeout(r, stepDuration));
+
+                    currentDay += 1;
+                    updateTimeDisplay();
+                }
+            }
+
+            // Brief pause to show we stopped?
+            // REMOVED extra logical pause as loop covers it, but keeping a tiny beat if needed. 
+            // Actually, if nightsAfter > 0, we just did a long pause. If not, we might want a tiny pause?
+            // Original code had a 500ms pause here.
+            // If we did the loop, we don't need another pause. However if nightsAfter == 0 (e.g. stopover), maybe we do?
+            // Let's keep it safe:
+            if (!segment.nightsAfter) {
+                await new Promise(r => setTimeout(r, 200));
             }
         }
 
