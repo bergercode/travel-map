@@ -1,6 +1,6 @@
-# Wanderlust - Travel Map
+# TravelPlot.app - Interactive Travel Planner
 
-**Wanderlust** is an interactive travel planning application designed to help you visualize your journeys. It allows you to plot stops on a map, calculate travel times between them, and simulate the entire trip with an animated playback feature.
+**TravelPlot.app** is an interactive travel planning application designed to help you visualize your journeys. It allows you to plot stops on a map, calculate travel times between them, and simulate the entire trip with an animated playback feature.
 
 ## What this app does
 - **Interactive Map**: Click to add stops and drag them to adjust positions.
@@ -20,7 +20,13 @@ This project is built using standard web technologies:
   - **Google Fonts (Outfit)**: For typography.
 
 ## Why I built this
-I love planning trips and wanted something that gave a good visual representation of the travel time. Standard maps show the route, but I wanted to *feel* the journey—seeing how long legs take relative to each other and visualizing the flow of the entire trip.
+I love planning trips and wanted something that gave a good visual representation of the travel time vs total holiday time. Standard maps show the route, but I wanted to *feel* the journey—seeing how long legs take relative to each other and visualizing the flow of the entire trip.
 
 ## The Challenge
-My challenge was to get familiar with **Google's Antigravity with Gemini 3 Pro** and see what I could build and get working within a strict **2-hour window**. This project serves as a testament to what's possible with modern AI-assisted coding tools in a short amount of time.
+My challenge was to get familiar with **Google's Antigravity with Gemini 3 Pro** and see what I could build and get working for a MVP draft. I'm honestly impressed with how it turned out!
+
+## Limitations
+- Flight Transit: Some flight paths are being routed incorrectly around the globe e.g. BNE -> LAX -> IAD shows flight path going West instead of East.
+- Train routs default to driving routes visually
+  - Will address this with a new routing machine instead of OSRM
+- Lots of User testing to be done and I'm sure there will be bugs discovered

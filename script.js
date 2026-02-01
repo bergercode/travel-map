@@ -616,7 +616,7 @@ const updateUI = () => {
         // Render Type Badge
         const typeBadge = `<span class="stop-type-badge type-${type}">${type.toUpperCase()}</span>`;
 
-        const displayName = stop.name || `Stop #${index + 1}`;
+        const displayName = stop.name || '';
         const nights = stop.nights || 0;
 
         // New Card Layout
@@ -629,7 +629,7 @@ const updateUI = () => {
                        onchange="updateStopName(${stop.id}, this.value)" 
                        onclick="this.select()"
                        aria-label="Stop Name"
-                       placeholder="Enter Stop Name"
+                       placeholder="Enter location"
                        autocomplete="off"
                 />
                 <div class="suggestions-dropdown" id="dropdown-${stop.id}"></div>
@@ -810,7 +810,7 @@ window.addStopFromButton = () => {
 
 // Helper: Update Marker Tooltip
 const updateMarkerInfo = (s, idx, type) => {
-    const displayName = s.name || `Stop #${idx + 1}`;
+    const displayName = s.name || 'Enter stop';
 
     const content = `
         <div style="text-align: center; font-family: 'Outfit', sans-serif;">
