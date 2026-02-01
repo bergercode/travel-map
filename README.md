@@ -10,6 +10,8 @@ Live App - [travelplot.app](https://travelplot.app/)
 - **Trip Simulation**: Watch an animated token travel along your route to get a real sense of distance and duration.
 - **Smart Adjustments**: Customize stop names, stay durations (nights), and specific transit methods.
 
+![TravelPlotapp](https://github.com/user-attachments/assets/2f50c264-2789-4f31-87a6-4c942aa30257)
+
 ## How it's built
 This project is built using standard web technologies:
 - **HTML5 & CSS3**: For structure and styling, using a modern, glassmorphism aesthetic.
