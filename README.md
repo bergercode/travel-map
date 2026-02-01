@@ -30,3 +30,9 @@ My challenge was to get familiar with **Google's Antigravity with Gemini 3 Pro**
 - Train routs default to driving routes visually
   - Will address this with a new routing machine instead of OSRM
 - Lots of User testing to be done and I'm sure there will be bugs discovered
+
+## Hosting & Current state
+This is currently using Github Pages. Why? because it's free - my favorite price point
+
+## Roadmap
+- I might rewrite this app and deploy it on some AWS infrastructure.
