@@ -144,7 +144,9 @@ const getRoute = async (start, end, method, options = {}) => {
             const controlLat = midLat + (dist * 0.2);
             const controlLng = midLng;
 
-            for (let t = 0; t <= 1; t += 0.05) {
+            const steps = 20;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
                 const l = (1 - t) * (1 - t) * lat1 + 2 * (1 - t) * t * controlLat + t * t * lat2;
                 const n = (1 - t) * (1 - t) * lng1 + 2 * (1 - t) * t * controlLng + t * t * lng2;
                 latlngs.push([l, n]);
@@ -1339,7 +1341,8 @@ playBtn.addEventListener('click', async () => {
                 realDurationHours: totalHours,
                 baseAnimDuration: Math.max(baseDurationMs, 500),
                 method: method,
-                nightsAfter: parseInt(end.nights) || 0 // Nights spent AT the destination
+                nightsAfter: parseInt(end.nights) || 0, // Nights spent AT the destination
+                destLatLng: end.latlng
             });
         }
 
@@ -1495,6 +1498,16 @@ playBtn.addEventListener('click', async () => {
 
             // End of Segment: Process Nights
             // End of Segment: Process Nights
+            // End of Segment: Process Nights
+
+            // Snap to exact destination
+            if (segment.destLatLng) {
+                playbackMarker.setLatLng(segment.destLatLng);
+                if (isCameraLocked && !isZooming) {
+                    map.panTo(segment.destLatLng, { animate: false });
+                }
+            }
+
             if (segment.nightsAfter > 0) {
                 const stayIcons = ['fa-bed', 'fa-utensils', 'fa-martini-glass'];
 
@@ -1824,3 +1837,30 @@ const importTrip = (text) => {
 };
 
 loadState();
+// Mobile Info Panel Toggle
+const infoToggleBtn = document.getElementById('info-toggle-btn');
+const infoPanelMobile = document.getElementById('info-panel-mobile');
+
+if (infoToggleBtn && infoPanelMobile) {
+    infoToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        infoPanelMobile.classList.toggle('active');
+    });
+
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+        if (infoPanelMobile.classList.contains('active') &&
+            !infoPanelMobile.contains(e.target) &&
+            !infoToggleBtn.contains(e.target)) {
+            infoPanelMobile.classList.remove('active');
+        }
+    });
+
+    // Close when clicking the link inside (optional, but good UX if it opens new tab)
+    const link = infoPanelMobile.querySelector('a');
+    if (link) {
+        link.addEventListener('click', () => {
+            infoPanelMobile.classList.remove('active');
+        });
+    }
+}
