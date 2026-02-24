@@ -32,8 +32,7 @@ My challenge was to get familiar with **Google's Antigravity with Gemini 3 Pro**
 ## Limitations
 - Flight Transit: Some flight paths are being routed incorrectly around the globe e.g. BNE -> LAX -> IAD shows flight path going West instead of East.
 - Train routs default to driving routes visually
-  - Will address this with a new routing machine instead of OSRM
-- Lots of User testing to be done and I'm sure there will be bugs discovered
+- Will address this with a new routing machine instead of OSRM
 
 ## Hosting & Current state
 This is currently using Github Pages. Why? because it's free - my favorite price point
